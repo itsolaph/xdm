@@ -1,0 +1,12 @@
+YouTube downloads use NewPipeExtractor, which XDM includes as a library (unmodified).
+
+NewPipeExtractor
+  Source:  https://github.com/TeamNewPipe/NewPipeExtractor
+  Authors: Team NewPipe and contributors
+  License: GNU General Public License v3 or later (GPL-3.0.txt)
+  Version: see gradle/libs.versions.toml ("newpipeExtractor")
+
+It brings its own dependencies: nanojson (Team NewPipe fork, public domain / Unlicense), jsoup (MIT),
+Protocol Buffers lite (BSD-3-Clause), Mozilla Rhino (MPL-2.0, see MPL-2.0.txt), JSR-305 annotations (BSD-3-Clause).
+
+Because XDM contains a GPL-3.0 library, XDM as a whole has to be passed on under the GPL-3.0 terms.

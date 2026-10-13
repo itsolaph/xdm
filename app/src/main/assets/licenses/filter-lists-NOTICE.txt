@@ -1,0 +1,33 @@
+XDM bundles snapshots of the following third-party lists. They are separate works, redistributed unmodified
+apart from removing comments and rule types XDM does not use (scriptlets, CSS injection, HTML filtering).
+"Update filter lists" in Settings replaces them with fresh copies from the same sources.
+
+EasyList
+  Source:  https://easylist.to/easylist/easylist.txt
+  Authors: The EasyList authors (https://easylist.to/)
+  License: dual-licensed, GNU General Public License v3 (GPL-3.0.txt) and Creative Commons
+           Attribution-ShareAlike 3.0 Unported (https://creativecommons.org/licenses/by-sa/3.0/)
+  Snapshot: Last modified 09 Oct 2026 18:18 UTC
+
+AdGuard Base filter (uBlock Origin flavour, without EasyList)
+  Source:  https://filters.adtidy.org/extension/ublock/filters/2_without_easylist.txt
+  Authors: AdGuard Software Ltd. and contributors (https://github.com/AdguardTeam/AdguardFilters)
+  License: GNU General Public License v3 (GPL-3.0.txt)
+  Snapshot: TimeUpdated 2026-10-09T17:05:11+00:00
+
+AdGuard DNS filter (whole-domain rules only)
+  Source:  https://adguardteam.github.io/AdGuardSDNSFilter/Filters/filter.txt
+  Authors: AdGuard Software Ltd. and contributors (https://github.com/AdguardTeam/AdGuardSDNSFilter)
+  License: GNU General Public License v3 (GPL-3.0.txt)
+  Snapshot: Last modified 2026-10-09T18:18:53Z
+
+StevenBlack unified hosts
+  Source:  https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts
+  License: MIT (stevenblack-hosts-LICENSE.txt)
+  Snapshot: 2026-10-07
+
+Public Suffix List
+  Source:  https://publicsuffix.org/list/public_suffix_list.dat
+  Authors: Mozilla Foundation and contributors
+  License: Mozilla Public License 2.0 (MPL-2.0.txt)
+  Snapshot: 2026-10-10 (converted to punycode, comments removed)

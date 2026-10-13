@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+        <!--
+            Debug builds only. The emulator smoke test in CI starts this activity from the shell
+            (am start with the string extra "id" set to a video id) and reads the YTTEST line it logs.
+            Exported on purpose so that am start works.
+        -->
+        <activity
+            android:name=".debug.YoutubeTestActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:label="YouTube self-test" />
+    </application>
+</manifest>

@@ -1,0 +1,138 @@
+package com.olaph.xdm.core
+
+import android.content.ContentValues
+import android.content.Context
+import android.media.MediaScannerConnection
+import android.net.Uri
+import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
+import androidx.core.content.FileProvider
+import com.olaph.xdm.engine.FilenameUtils
+import com.olaph.xdm.engine.MimeTypes
+import java.io.File
+import java.io.IOException
+
+data class Saved(val location: String, val displayPath: String, val fileName: String)
+
+/** Where finished downloads go; Android-free so the manager can be tested with a fake. */
+interface FileStore {
+    /** Blocking; call from an IO dispatcher. Deletes nothing: the caller removes [temp] on success. */
+    fun save(temp: File, desiredName: String, mimeType: String?): Saved
+    /** Blocking; call from an IO dispatcher. Never throws. */
+    fun delete(location: String): DeleteStatus
+}
+
+enum class DeleteStatus {
+    DELETED,
+    /** Nothing there any more (moved or deleted by the user): the record can simply go. */
+    MISSING,
+    /** The app may not delete it (e.g. owned by a previous install); needs the system's confirmation. */
+    DENIED,
+    FAILED,
+}
+
+/** Moves finished temp files into the public Download/XDM folder. */
+class FileSaver(private val context: Context) : FileStore {
+
+    private val authority = "${context.packageName}.fileprovider"
+
+    override fun save(temp: File, desiredName: String, mimeType: String?): Saved {
+        val mime = MimeTypes.forFileName(desiredName)
+            ?: mimeType?.takeIf { it != MimeTypes.OCTET_STREAM }
+            ?: MimeTypes.OCTET_STREAM
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) saveMediaStore(temp, desiredName, mime)
+        else saveLegacy(temp, desiredName, mime)
+    }
+
+    @androidx.annotation.RequiresApi(Build.VERSION_CODES.Q)
+    private fun saveMediaStore(temp: File, desiredName: String, mime: String): Saved {
+        val resolver = context.contentResolver
+        val collection = MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+        val name = FilenameUtils.uniqueName(desiredName) { candidate ->
+            resolver.query(
+                collection,
+                arrayOf(MediaStore.Downloads._ID),
+                "${MediaStore.Downloads.DISPLAY_NAME} = ? AND ${MediaStore.Downloads.RELATIVE_PATH} = ?",
+                arrayOf(candidate, "$RELATIVE_PATH/"),
+                null,
+            )?.use { it.moveToFirst() } ?: false
+        }
+        val values = ContentValues().apply {
+            put(MediaStore.Downloads.DISPLAY_NAME, name)
+            put(MediaStore.Downloads.MIME_TYPE, mime)
+            put(MediaStore.Downloads.RELATIVE_PATH, RELATIVE_PATH)
+            put(MediaStore.Downloads.IS_PENDING, 1)
+        }
+        val uri = resolver.insert(collection, values) ?: throw IOException("Cannot create file in Downloads")
+        try {
+            resolver.openOutputStream(uri, "w")?.use { out ->
+                temp.inputStream().use { it.copyTo(out, 256 * 1024) }
+            } ?: throw IOException("Cannot open $uri for writing")
+            resolver.update(uri, ContentValues().apply { put(MediaStore.Downloads.IS_PENDING, 0) }, null, null)
+        } catch (e: Throwable) {
+            runCatching { resolver.delete(uri, null, null) }
+            throw e
+        }
+        // MediaProvider may adjust the display name; read back what it actually used.
+        val finalName = resolver.query(uri, arrayOf(MediaStore.Downloads.DISPLAY_NAME), null, null, null)
+            ?.use { if (it.moveToFirst()) it.getString(0) else null } ?: name
+        return Saved(uri.toString(), "$RELATIVE_PATH/$finalName", finalName)
+    }
+
+    @Suppress("DEPRECATION")
+    private fun saveLegacy(temp: File, desiredName: String, mime: String): Saved {
+        val dir = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "XDM")
+        if (!dir.isDirectory && !dir.mkdirs()) throw IOException("Cannot create ${dir.path}")
+        val name = FilenameUtils.uniqueName(desiredName) { File(dir, it).exists() }
+        val target = File(dir, name)
+        if (!temp.renameTo(target)) {
+            temp.inputStream().use { input -> target.outputStream().use { input.copyTo(it, 256 * 1024) } }
+        }
+        MediaScannerConnection.scanFile(context, arrayOf(target.absolutePath), arrayOf(mime), null)
+        return Saved(target.absolutePath, "$RELATIVE_PATH/$name", name)
+    }
+
+    /** A Uri other apps can read: the MediaStore Uri itself, or a FileProvider Uri for legacy paths. */
+    fun uriFor(location: String): Uri =
+        if (location.startsWith("content://")) Uri.parse(location)
+        else FileProvider.getUriForFile(context, authority, File(location))
+
+    fun exists(location: String): Boolean = runCatching {
+        if (location.startsWith("content://")) {
+            context.contentResolver.query(Uri.parse(location), arrayOf(MediaStore.MediaColumns._ID), null, null, null)
+                ?.use { it.moveToFirst() } ?: false
+        } else File(location).exists()
+    }.getOrDefault(false)
+
+    override fun delete(location: String): DeleteStatus = try {
+        if (location.startsWith("content://")) {
+            if (context.contentResolver.delete(Uri.parse(location), null, null) > 0) DeleteStatus.DELETED else DeleteStatus.MISSING
+        } else {
+            val f = File(location)
+            when {
+                !f.exists() -> DeleteStatus.MISSING
+                f.delete() -> DeleteStatus.DELETED
+                else -> DeleteStatus.FAILED
+            }
+        }
+    } catch (_: SecurityException) { // includes RecoverableSecurityException
+        DeleteStatus.DENIED
+    } catch (_: Exception) {
+        DeleteStatus.FAILED
+    }
+
+    /**
+     * One system confirmation dialog for all [locations] (API 30+; MediaStore Uris only). Null below API 30
+     * or when there is nothing to ask about. Launch it, then drop the records if the result is RESULT_OK.
+     */
+    fun deleteRequest(locations: List<String>): android.content.IntentSender? {
+        val uris = locations.filter { it.startsWith("content://") }.map { Uri.parse(it) }
+        if (uris.isEmpty() || Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return null
+        return runCatching { MediaStore.createDeleteRequest(context.contentResolver, uris).intentSender }.getOrNull()
+    }
+
+    companion object {
+        const val RELATIVE_PATH = "Download/XDM"
+    }
+}
