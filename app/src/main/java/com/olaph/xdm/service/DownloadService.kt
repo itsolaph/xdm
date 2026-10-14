@@ -38,17 +38,29 @@ class DownloadService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        val notifications = container.notifications
+        val c = container
         // Must happen within seconds of startForegroundService().
-        val first = notifications.summary(0, 0, 0, false)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            ServiceCompat.startForeground(this, NotificationHelper.SUMMARY_ID, first, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
-        } else {
-            startForeground(NotificationHelper.SUMMARY_ID, first)
+        val first = c.notifications.summary(0, 0, 0, false)
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                ServiceCompat.startForeground(this, NotificationHelper.SUMMARY_ID, first, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
+            } else {
+                startForeground(NotificationHelper.SUMMARY_ID, first)
+            }
+        } catch (e: IllegalStateException) {
+            // ForegroundServiceStartNotAllowedException (an IllegalStateException): started from the background without
+            // an exemption, or by a boot receiver on Android 15+. Downloads stay queued; the user can resume them.
+            c.scope.launch {
+                val waiting = c.dao.getByStatus(DownloadStatus.QUEUED).size + c.dao.getByStatus(DownloadStatus.RUNNING).size
+                if (waiting > 0) c.notifications.showResumePrompt(waiting, waitingForWifi = false)
+            }
+            stopSelf()
+            return START_NOT_STICKY
         }
+        c.releaseQueue()
 
         val id = intent?.getLongExtra(EXTRA_ID, -1) ?: -1
-        val manager = container.manager
+        val manager = c.manager
         when (intent?.action) {
             ACTION_PAUSE -> manager.pause(id)
             ACTION_RESUME -> manager.resume(id)
@@ -108,13 +120,14 @@ class DownloadService : Service() {
         const val ACTION_CANCEL = "com.olaph.xdm.CANCEL"
         const val ACTION_PAUSE_ALL = "com.olaph.xdm.PAUSE_ALL"
         const val ACTION_RESUME_ALL = "com.olaph.xdm.RESUME_ALL"
+
+        /** "Resume" on the after-restart notification: starting the service is all it takes, the queue does the rest. */
+        const val ACTION_RESUME_INTERRUPTED = "com.olaph.xdm.RESUME_INTERRUPTED"
         private const val STOP_GRACE_MS = 1500L
 
-        /** Safe to call from anywhere; ignores the "not allowed to start from background" case. */
-        fun start(context: Context) {
-            runCatching {
-                ContextCompat.startForegroundService(context, Intent(context, DownloadService::class.java))
-            }
-        }
+        /** Safe to call from anywhere; false if the system refused the start (e.g. from the background). */
+        fun start(context: Context): Boolean = runCatching {
+            ContextCompat.startForegroundService(context, Intent(context, DownloadService::class.java))
+        }.isSuccess
     }
 }

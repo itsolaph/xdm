@@ -112,11 +112,20 @@ class DownloadManager(
     private val youtubeRetryDelayMs: Long = 2_000,
     /** Largest range requested from googlevideo in one go (tests use small values). */
     private val youtubeChunkBytes: Long = YoutubeJob.CHUNK_BYTES,
+    /**
+     * Start with the queue on hold: nothing runs until [releaseQueue]. The app process can be started by the system
+     * (after a reboot, say) at a moment when it may not run a foreground service, and downloads must not run without one.
+     */
+    holdQueue: Boolean = false,
 ) {
     private enum class StopReason { PAUSE, CANCEL, DELETE, NETWORK, REQUEUE }
 
     private val jobs = ConcurrentHashMap<Long, Job>()
-    private val stopReasons = ConcurrentHashMap<Long, StopReason>()
+    /**
+     * Why a job was stopped, per job rather than per download: the next job of the same download can already be
+     * running (and be stopped again) while the previous one is still unwinding.
+     */
+    private val stopReasons = ConcurrentHashMap<Job, StopReason>()
     private val meters = ConcurrentHashMap<Long, SpeedMeter>()
     private val pumpMutex = Mutex()
 
@@ -129,6 +138,14 @@ class DownloadManager(
 
     private val _waitingForWifi = MutableStateFlow(false)
     val waitingForWifi: StateFlow<Boolean> = _waitingForWifi
+
+    private val _queueReleased = MutableStateFlow(!holdQueue)
+    val queueReleased: StateFlow<Boolean> = _queueReleased
+
+    /** Lets the queue run (an activity is showing, or the foreground service is up). Idempotent. */
+    fun releaseQueue() {
+        if (_queueReleased.compareAndSet(false, true)) scope.launch { pump() }
+    }
 
     fun tempFile(id: Long) = File(tempDir, "$id.part")
 
@@ -264,17 +281,18 @@ class DownloadManager(
         val d = dao.get(id) ?: return@act
         when (d.status) {
             DownloadStatus.PAUSED, DownloadStatus.FAILED, DownloadStatus.CANCELLED -> {
-                if (jobs.containsKey(id)) {
+                val job = jobs[id]
+                if (job != null) {
                     // The stopped job is still unwinding (its finally block has not run yet). Leave REQUEUE for it,
                     // then look again: if the job got removed meanwhile, whoever takes REQUEUE out of the map first
                     // does the requeue, so it happens exactly once and never gets lost.
-                    stopReasons[id] = StopReason.REQUEUE
-                    if (!jobs.containsKey(id) && stopReasons.remove(id, StopReason.REQUEUE)) requeueStopped(id)
+                    stopReasons[job] = StopReason.REQUEUE
+                    if (jobs[id] !== job && stopReasons.remove(job, StopReason.REQUEUE)) requeueStopped(id)
                 } else {
                     requeueStopped(id)
                 }
             }
-            DownloadStatus.RUNNING -> if (stopReasons[id] == StopReason.PAUSE) stopReasons[id] = StopReason.REQUEUE
+            DownloadStatus.RUNNING -> jobs[id]?.let { stopReasons.replace(it, StopReason.PAUSE, StopReason.REQUEUE) }
             else -> Unit
         }
     }
@@ -360,25 +378,27 @@ class DownloadManager(
     }
 
     fun resumeAll() = act {
-        stopReasons.entries.filter { it.value == StopReason.PAUSE }.forEach { stopReasons[it.key] = StopReason.REQUEUE }
+        stopReasons.keys.forEach { stopReasons.replace(it, StopReason.PAUSE, StopReason.REQUEUE) }
         dao.getByStatus(DownloadStatus.PAUSED).filter { !jobs.containsKey(it.id) }.forEach { dao.requeue(it.id) }
     }
 
     // ---- scheduling ----
 
     private fun stop(id: Long, reason: StopReason) {
-        stopReasons[id] = reason
-        jobs[id]?.cancel()
+        val job = jobs[id] ?: return
+        stopReasons[job] = reason
+        job.cancel()
     }
 
     private suspend fun pump() = pumpMutex.withLock { pumpLocked() }
 
     private suspend fun pumpLocked() {
+        if (!_queueReleased.value) return
         val s = settings.current()
         val blocked = s.wifiOnly && network.metered.value
         _waitingForWifi.value = blocked
         if (blocked) {
-            jobs.keys.forEach { if (stopReasons[it] == null) stop(it, StopReason.NETWORK) }
+            jobs.forEach { (id, job) -> if (stopReasons[job] == null) stop(id, StopReason.NETWORK) }
             return
         }
         var running = jobs.size
@@ -394,12 +414,22 @@ class DownloadManager(
         dao.setStatus(id, DownloadStatus.RUNNING)
         val job = scope.launch(Dispatchers.Default, start = CoroutineStart.LAZY) { runDownload(id) }
         jobs[id] = job
+        // A job stopped before it got to run skips runDownload() and its cleanup altogether: do that part here.
+        job.invokeOnCompletion {
+            if (jobs.remove(id, job)) {
+                scope.launch {
+                    withContext(NonCancellable) { onStopped(id, stopReasons.remove(job)) }
+                    pump()
+                }
+            }
+        }
         job.start()
     }
 
     // ---- one download ----
 
     private suspend fun runDownload(id: Long) {
+        val self = currentCoroutineContext()[Job]!!
         try {
             val d = dao.get(id) ?: return
             val s = settings.current()
@@ -430,17 +460,19 @@ class DownloadManager(
             withContext(Dispatchers.IO) { deleteTemp(id) }
             dao.get(id)?.let { notifier.onCompleted(it) }
         } catch (e: CancellationException) {
-            withContext(NonCancellable) { onStopped(id, stopReasons.remove(id)) }
+            // The reason stays in the map until `finally`: a resume arriving while the status is still RUNNING
+            // turns PAUSE into REQUEUE there instead of being lost.
+            withContext(NonCancellable) { onStopped(id, stopReasons[self]) }
             throw e
         } catch (e: Throwable) {
             // A stop request can surface as an I/O error instead of a CancellationException (the socket is
             // closed under the reader). The job is cancelled then: treat it as the stop, not as a failure.
             if (!currentCoroutineContext().isActive) {
-                withContext(NonCancellable) { onStopped(id, stopReasons.remove(id)) }
+                withContext(NonCancellable) { onStopped(id, stopReasons[self]) }
                 throw CancellationException("stopped").apply { initCause(e) }
             }
             withContext(NonCancellable) {
-                stopReasons.remove(id)
+                stopReasons.remove(self)
                 dao.setStatus(id, DownloadStatus.FAILED, describe(e))
                 dao.get(id)?.let { notifier.onFailed(it) }
             }
@@ -448,7 +480,7 @@ class DownloadManager(
             jobs.remove(id)
             // A resume/retry that came in after onStopped() saw the job still registered and only left REQUEUE
             // behind. Order matters: the job is removed first, then the reason (resume() relies on it).
-            if (stopReasons.remove(id) == StopReason.REQUEUE) withContext(NonCancellable) { requeueStopped(id) }
+            if (stopReasons.remove(self) == StopReason.REQUEUE) withContext(NonCancellable) { requeueStopped(id) }
             meters.remove(id)
             _live.update { it - id }
             scope.launch { pump() }

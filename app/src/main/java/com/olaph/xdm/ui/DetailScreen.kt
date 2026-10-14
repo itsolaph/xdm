@@ -157,25 +157,29 @@ private fun InfoRow(label: String, value: String, selectable: Boolean = false) {
     }
 }
 
-/** One cell per connection, filled according to how much of that byte range has been written. */
+/**
+ * One cell per byte range in file order, filled according to how much of it has been written. Ranges split while
+ * downloading add cells, so their number changes as the download goes on.
+ */
 @Composable
 private fun SegmentBar(status: DownloadStatus, total: Long, connections: Int, segments: List<SegmentEntity>) {
     val track = MaterialTheme.colorScheme.surfaceVariant
     val fill = MaterialTheme.colorScheme.primary
     Canvas(Modifier.fillMaxWidth().height(14.dp)) {
-        val gap = 3.dp.toPx()
-        val radius = CornerRadius(3.dp.toPx())
         // [fraction of the whole file, fraction filled] for each cell
         val cells: List<Pair<Float, Float>> = when {
             status == DownloadStatus.COMPLETED -> List(connections.coerceAtLeast(1)) { 1f / connections.coerceAtLeast(1) to 1f }
             segments.isNotEmpty() && total > 0 && segments.all { it.end >= 0 } ->
-                segments.map { s ->
+                segments.sortedBy { it.start }.map { s ->
                     val len = (s.end - s.start + 1).coerceAtLeast(1)
                     (len.toFloat() / total) to (s.downloaded.toFloat() / len).coerceIn(0f, 1f)
                 }
             else -> listOf(1f to 0f)
         }
-        val usable = size.width - gap * (cells.size - 1)
+        // Narrower gaps once there are many cells, so small ranges stay visible.
+        val gap = (if (cells.size > 24) 1.dp else 3.dp).toPx()
+        val radius = CornerRadius((if (cells.size > 24) 1.dp else 3.dp).toPx())
+        val usable = (size.width - gap * (cells.size - 1)).coerceAtLeast(0f)
         var x = 0f
         for ((share, done) in cells) {
             val w = usable * share

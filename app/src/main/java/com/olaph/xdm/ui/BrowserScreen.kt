@@ -1,11 +1,14 @@
 package com.olaph.xdm.ui
 
+import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
 import android.content.MutableContextWrapper
+import android.content.pm.ActivityInfo
 import android.net.Uri
 import android.view.ViewGroup
 import android.webkit.WebChromeClient
@@ -81,6 +84,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -103,12 +107,16 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.olaph.xdm.browser.BlockNotice
 import com.olaph.xdm.browser.BrowserPage
 import com.olaph.xdm.browser.BrowserTab
 import com.olaph.xdm.browser.BrowserViewModel
+import com.olaph.xdm.browser.FullscreenVideo
 import com.olaph.xdm.browser.LinkTarget
 import com.olaph.xdm.engine.UrlInput
 import com.olaph.xdm.engine.UrlUtils
@@ -179,14 +187,15 @@ private fun BrowserTabPage(vm: BrowserViewModel, tab: BrowserTab, onOpenSettings
                 BrowserHome(vm, tab)
             } else {
                 key(tab.id, tab.webViewEpoch) { WebViewHost(vm, tab) }
-                MediaButton(vm, tab, Modifier.align(Alignment.BottomEnd).padding(16.dp))
+                if (vm.fullscreen == null) MediaButton(vm, tab, Modifier.align(Alignment.BottomEnd).padding(16.dp))
             }
             SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter))
         }
         HorizontalDivider()
         BottomToolbar(vm, tab, onOpenSettings)
     }
-    if (tab.mediaSheetOpen) MediaSheet(vm, tab)
+    vm.fullscreen?.let { FullscreenVideoHost(vm, it) }
+    if (tab.mediaSheetOpen && vm.fullscreen == null) MediaSheet(vm, tab)
     if (shieldOpen) AdShieldSheet(vm, tab) { shieldOpen = false }
     vm.linkMenu?.let { LinkMenu(vm, it) }
 }
@@ -278,6 +287,50 @@ private fun WebViewHost(vm: BrowserViewModel, tab: BrowserTab) {
             vm.flushCookies()
         }
     }
+}
+
+/**
+ * The page's fullscreen video, laid over the whole window on black: system bars hidden (they come back on a swipe),
+ * screen kept on, and any orientation allowed. Leaving this composition (back, other tab, other screen) ends it.
+ * Rotation does not recreate the activity (configChanges), so the video keeps playing in place.
+ */
+@Composable
+private fun FullscreenVideoHost(vm: BrowserViewModel, fs: FullscreenVideo) {
+    val activity = LocalContext.current.findActivity() ?: return
+    DisposableEffect(fs) {
+        val window = activity.window
+        val decor = window.decorView as ViewGroup
+        val frame = FrameLayout(activity).apply {
+            setBackgroundColor(android.graphics.Color.BLACK)
+            keepScreenOn = true
+            isClickable = true // touches the video does not use must not reach the page underneath
+        }
+        (fs.view.parent as? ViewGroup)?.removeView(fs.view)
+        frame.addView(fs.view, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        decor.addView(frame, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+
+        val bars = WindowCompat.getInsetsController(window, decor)
+        val previousBehavior = bars.systemBarsBehavior
+        bars.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        bars.hide(WindowInsetsCompat.Type.systemBars())
+        val previousOrientation = activity.requestedOrientation
+        activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR
+
+        onDispose {
+            activity.requestedOrientation = previousOrientation
+            bars.show(WindowInsetsCompat.Type.systemBars())
+            bars.systemBarsBehavior = previousBehavior
+            frame.removeAllViews()
+            decor.removeView(frame)
+            vm.exitFullscreen(only = fs)
+        }
+    }
+}
+
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
 }
 
 // ---- address bar ----

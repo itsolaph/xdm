@@ -54,8 +54,8 @@ android {
         applicationId = "com.olaph.xdm"
         minSdk = 26
         targetSdk = 35
-        versionCode = 9
-        versionName = "0.6.1"
+        versionCode = 10
+        versionName = "0.7.0"
 
         // Empty = crash reporting is not set up in this build.
         buildConfigField("String", "CRASH_RELAY_URL", (privateConfig("crashRelayUrl") ?: "").asBuildConfigString())

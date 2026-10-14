@@ -1,5 +1,6 @@
 package com.olaph.xdm.ui
 
+import android.os.Build
 import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
@@ -45,6 +46,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.olaph.xdm.BuildConfig
 import com.olaph.xdm.adblock.PopupMode
 import com.olaph.xdm.adblock.UpdateState
+import com.olaph.xdm.core.RestartResume
 import com.olaph.xdm.crash.TestReportResult
 import com.olaph.xdm.data.AppSettings
 import com.olaph.xdm.data.ThemeMode
@@ -99,6 +101,24 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit) {
                     )
                 }
                 Switch(checked = settings.wifiOnly, onCheckedChange = vm::setWifiOnly)
+            }
+            Row(
+                Modifier.fillMaxWidth().clickable { vm.setResumeAfterRestart(!settings.resumeAfterRestart) }.padding(vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("Resume downloads after restart", style = MaterialTheme.typography.titleSmall)
+                    Text(
+                        if (Build.VERSION.SDK_INT >= RestartResume.BOOT_FGS_RESTRICTED_SDK) {
+                            "After a reboot, a notification offers to resume interrupted downloads (Android doesn't let them start on their own). After an app update they continue by themselves."
+                        } else {
+                            "Interrupted downloads continue by themselves after a reboot or an app update"
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(checked = settings.resumeAfterRestart, onCheckedChange = vm::setResumeAfterRestart)
             }
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
 

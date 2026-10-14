@@ -40,6 +40,8 @@ data class AppSettings(
     val convertHlsToMp4: Boolean = true,
     /** "Default YouTube quality": [YoutubeQuality.ASK] shows the format sheet, anything else adds the download straight away. */
     val youtubeQuality: YoutubeQuality = YoutubeQuality.ASK,
+    /** Put interrupted downloads back to work after a reboot or an app update. */
+    val resumeAfterRestart: Boolean = true,
 ) {
     val enabledFilterLists: Set<String> get() = FilterLists.ALL.map { it.id }.filter { it !in disabledFilterLists }.toSet()
 
@@ -72,6 +74,7 @@ class SettingsRepository(private val context: Context) : SettingsSource {
         val disabledFilterLists = stringSetPreferencesKey("disabled_filter_lists")
         val convertHlsToMp4 = booleanPreferencesKey("convert_hls_to_mp4")
         val youtubeQuality = stringPreferencesKey("youtube_quality")
+        val resumeAfterRestart = booleanPreferencesKey("resume_after_restart")
     }
 
     override val flow: Flow<AppSettings> = context.dataStore.data.map { p ->
@@ -90,6 +93,7 @@ class SettingsRepository(private val context: Context) : SettingsSource {
             disabledFilterLists = p[Keys.disabledFilterLists] ?: d.disabledFilterLists,
             convertHlsToMp4 = p[Keys.convertHlsToMp4] ?: d.convertHlsToMp4,
             youtubeQuality = p[Keys.youtubeQuality]?.let { runCatching { YoutubeQuality.valueOf(it) }.getOrNull() } ?: d.youtubeQuality,
+            resumeAfterRestart = p[Keys.resumeAfterRestart] ?: d.resumeAfterRestart,
         )
     }
 
@@ -106,6 +110,7 @@ class SettingsRepository(private val context: Context) : SettingsSource {
     suspend fun setConvertHlsToMp4(v: Boolean) = context.dataStore.edit { it[Keys.convertHlsToMp4] = v }
     suspend fun setPopupMode(v: PopupMode) = context.dataStore.edit { it[Keys.popupMode] = v.name }
     suspend fun setYoutubeQuality(v: YoutubeQuality) = context.dataStore.edit { it[Keys.youtubeQuality] = v.name }
+    suspend fun setResumeAfterRestart(v: Boolean) = context.dataStore.edit { it[Keys.resumeAfterRestart] = v }
 
     suspend fun setFilterListEnabled(id: String, enabled: Boolean) = context.dataStore.edit {
         val current = it[Keys.disabledFilterLists] ?: emptySet()

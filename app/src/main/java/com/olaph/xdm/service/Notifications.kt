@@ -40,6 +40,9 @@ class NotificationHelper(
             sys.createNotificationChannel(
                 NotificationChannel(CHANNEL_DONE, "Finished downloads", NotificationManager.IMPORTANCE_DEFAULT),
             )
+            sys.createNotificationChannel(
+                NotificationChannel(CHANNEL_RESUME, "Resume after restart", NotificationManager.IMPORTANCE_DEFAULT),
+            )
         }
     }
 
@@ -144,6 +147,29 @@ class NotificationHelper(
         notify(progressId(d.id), b.build())
     }
 
+    // ---- after a reboot ----
+
+    /**
+     * "N downloads ready to resume". Used when the service may not start on its own (Android 15+ after a reboot, or
+     * any refused start). Both the Resume button and a tap count as the user acting, which lets the service start.
+     */
+    fun showResumePrompt(count: Int, waitingForWifi: Boolean) {
+        val title = if (count == 1) "1 download ready to resume" else "$count downloads ready to resume"
+        val text = if (waitingForWifi) "They were interrupted by the restart and will wait for Wi-Fi" else "They were interrupted by the restart"
+        val n = NotificationCompat.Builder(context, CHANNEL_RESUME)
+            .setSmallIcon(R.drawable.ic_stat_pause)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setContentIntent(openApp())
+            .setAutoCancel(true)
+            .setCategory(NotificationCompat.CATEGORY_STATUS)
+            .addAction(0, "Resume", action(DownloadService.ACTION_RESUME_INTERRUPTED, null, RESUME_PROMPT_REQUEST))
+            .build()
+        notify(RESUME_PROMPT_ID, n)
+    }
+
+    fun cancelResumePrompt() = nm.cancel(RESUME_PROMPT_ID)
+
     // ---- results (DownloadNotifier) ----
 
     override fun onCompleted(download: DownloadEntity) {
@@ -187,8 +213,12 @@ class NotificationHelper(
     companion object {
         const val CHANNEL_PROGRESS = "downloads"
         const val CHANNEL_DONE = "completed"
+        const val CHANNEL_RESUME = "resume_after_restart"
         const val GROUP = "xdm_downloads"
         const val SUMMARY_ID = 1
+        const val RESUME_PROMPT_ID = 2
+        // Per-download request codes are id * 4 + 0..3 (ids start at 1), so -1 never collides.
+        private const val RESUME_PROMPT_REQUEST = -1
         fun progressId(id: Long) = 10_000 + (id % 1_000_000).toInt()
         fun doneId(id: Long) = 2_000_000 + (id % 1_000_000).toInt()
     }

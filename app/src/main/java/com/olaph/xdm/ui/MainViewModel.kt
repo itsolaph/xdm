@@ -215,6 +215,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun setConnections(v: Int) = viewModelScope.launch { container.settings.setConnections(v) }
     fun setMaxParallel(v: Int) = viewModelScope.launch { container.settings.setMaxParallel(v) }
     fun setWifiOnly(v: Boolean) = viewModelScope.launch { container.settings.setWifiOnly(v) }
+    fun setResumeAfterRestart(v: Boolean) = viewModelScope.launch { container.settings.setResumeAfterRestart(v) }
     fun setTheme(v: ThemeMode) = viewModelScope.launch { container.settings.setTheme(v) }
     fun setUserAgent(v: String) = viewModelScope.launch { container.settings.setUserAgent(v) }
     fun setSearchEngine(v: SearchEngine) = viewModelScope.launch { container.settings.setSearchEngine(v) }

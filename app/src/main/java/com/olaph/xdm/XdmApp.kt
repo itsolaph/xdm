@@ -23,6 +23,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
@@ -85,7 +86,15 @@ class AppContainer(private val app: Application) {
         notifier = notifications,
         hlsEngine = HlsEngine(httpClient),
         youtube = youtube,
+        // The process may have been started by the system (reboot, app update); see releaseQueue().
+        holdQueue = true,
     )
+
+    /** Downloads may run in this process: an activity is on screen or the foreground service is up. */
+    fun releaseQueue() {
+        manager.releaseQueue()
+        notifications.cancelResumePrompt()
+    }
 
     fun start() {
         manager.restore()
@@ -95,9 +104,10 @@ class AppContainer(private val app: Application) {
         scope.launch(Dispatchers.IO) {
             settings.flow.map { it.enabledFilterLists }.distinctUntilChanged().collectLatest { filterLists.load(it) }
         }
-        // Keep a foreground service alive exactly while something is queued or running.
+        // Keep a foreground service alive exactly while something is queued or running (once the queue may run).
         scope.launch {
-            dao.observeActiveCount().map { it > 0 }.distinctUntilChanged().filter { it }
+            combine(dao.observeActiveCount(), manager.queueReleased) { active, released -> active > 0 && released }
+                .distinctUntilChanged().filter { it }
                 .collect { DownloadService.start(app) }
         }
     }

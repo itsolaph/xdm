@@ -33,6 +33,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import android.widget.Toast
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.olaph.xdm.XdmApp
 import com.olaph.xdm.browser.BrowserPage
 import com.olaph.xdm.browser.BrowserViewModel
 
@@ -45,6 +46,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        // Opening the app (also from the "ready to resume" notification) lets queued downloads run.
+        (application as XdmApp).container.releaseQueue()
         if (savedInstanceState == null) requestRuntimePermissions(this, permissions::launch)
         setContent { XdmRoot(vm, browserVm) }
     }

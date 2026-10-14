@@ -1,7 +1,6 @@
 package com.olaph.xdm.engine
 
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.async
@@ -12,9 +11,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import java.io.File
@@ -22,7 +19,6 @@ import java.io.IOException
 import java.io.RandomAccessFile
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
-import java.util.concurrent.atomic.AtomicLong
 import kotlin.math.min
 
 /**
@@ -39,6 +35,8 @@ class DownloadEngine(
     private val tickMs: Long = 250,
     private val persistIntervalMs: Long = 500,
     private val persistBytes: Long = 1024 * 1024,
+    /** See [SegmentPlanner.MIN_DYNAMIC_SPLIT]; tests use small values. */
+    private val minSplitBytes: Long = SegmentPlanner.MIN_DYNAMIC_SPLIT,
 ) {
     private val httpClient = client.withScopedCookies()
     val prober = Prober(httpClient)
@@ -72,11 +70,14 @@ class DownloadEngine(
         }
         store.savePlan(request.id, probe, segments)
 
-        val counters = Array(segments.size) { AtomicLong(segments[it].downloaded) }
-        fun snapshot() = segments.mapIndexed { i, s -> s.copy(downloaded = counters[i].get()) }
-        fun sum() = counters.sumOf { it.get() }
+        val table = SegmentTable(segments)
+        fun snapshot() = table.snapshot()
+        fun sum() = table.downloaded()
         urls.progress = ::sum
         onProgress(EngineProgress(sum(), total, snapshot()))
+        val connections = request.connections.coerceIn(SegmentPlanner.MIN_CONNECTIONS, SegmentPlanner.MAX_CONNECTIONS)
+        // Splitting needs ranges and a known end; a single connection has nobody to hand the other half to.
+        val minSplit = if (probe.resumable && connections > 1) minSplitBytes else 0L
 
         val channel = RandomAccessFile(file, "rw").channel
         try {
@@ -102,11 +103,21 @@ class DownloadEngine(
                     }
                 }
                 try {
-                    // More segments than connections (capped segment size): only `connections` of them run at a time.
-                    val gate = Semaphore(request.connections.coerceIn(SegmentPlanner.MIN_CONNECTIONS, SegmentPlanner.MAX_CONNECTIONS))
-                    // UNDISPATCHED: the segments queue up for a permit in order, so with few connections they are fetched front to back.
-                    segments.mapIndexed { i, seg ->
-                        async(start = CoroutineStart.UNDISPATCHED) { if (!seg.isComplete) gate.withPermit { runSegment(request, probe, seg, counters[i], channel, urls) } }
+                    // One worker per connection. Each takes the next unstarted segment (front to back; there are more
+                    // segments than connections when their size is capped), and once none are left it splits the
+                    // running segment with the most still to fetch, so a slow connection near the end gets help.
+                    val workers = if (minSplit > 0) connections else min(connections, table.size)
+                    List(workers) {
+                        async {
+                            while (true) {
+                                val seg = table.next(minSplit) ?: break
+                                try {
+                                    runSegment(request, probe, table, seg, channel, urls)
+                                } finally {
+                                    table.finished(seg)
+                                }
+                            }
+                        }
                     }.awaitAll()
                 } finally {
                     ticker.cancel()
@@ -138,24 +149,27 @@ class DownloadEngine(
         if (saved.etag != null && probe.etag != null && saved.etag != probe.etag) return false
         if (saved.lastModified != null && probe.lastModified != null && saved.lastModified != probe.lastModified) return false
         if (!file.exists() || file.length() != probe.contentLength) return false
+        // Split segments make the saved list irregular; a list with a gap or an overlap is not worth trusting.
+        if (!SegmentPlanner.coversExactly(saved.segments, probe.contentLength)) return false
         return saved.segments.all { it.downloaded in 0..(if (it.end < 0) Long.MAX_VALUE else it.length) }
     }
 
     private suspend fun runSegment(
         request: EngineRequest,
         probe: ProbeResult,
-        seg: SegmentState,
-        counter: AtomicLong,
+        table: SegmentTable,
+        seg: SegmentTable.Live,
         channel: FileChannel,
         urls: UrlHolder,
     ) {
+        val counter = seg.downloaded
         var attempt = 0
         while (true) {
             currentCoroutineContext().ensureActive()
             val before = counter.get()
             val used = urls.url
             try {
-                transferSegment(request, used, probe, seg, counter, channel)
+                transferSegment(request, used, probe, table, seg, channel)
                 return
             } catch (e: CancellationException) {
                 throw e
@@ -182,17 +196,17 @@ class DownloadEngine(
         request: EngineRequest,
         url: String,
         probe: ProbeResult,
-        seg: SegmentState,
-        counter: AtomicLong,
+        table: SegmentTable,
+        seg: SegmentTable.Live,
         channel: FileChannel,
     ) {
-        val offset = seg.start + counter.get()
-        val limit = if (seg.end >= 0) seg.end + 1 else Long.MAX_VALUE
-        if (offset >= limit) return
+        val offset = table.begin(seg)
+        val end = seg.end
+        if (offset >= seg.limit) return
 
         // A segment starting at 0 that spans the whole file needs no Range header.
-        val wholeFile = offset == 0L && (seg.end < 0 || seg.end + 1 == probe.contentLength)
-        val range = if (wholeFile) null else "bytes=$offset-${if (seg.end >= 0) seg.end else ""}"
+        val wholeFile = offset == 0L && (end < 0 || end + 1 == probe.contentLength)
+        val range = if (wholeFile) null else "bytes=$offset-${if (end >= 0) end else ""}"
 
         val ctx = currentCoroutineContext()
         val call = httpClient.newCall(buildRequest(url, request.userAgent, range = range, headers = request.headersFor?.invoke(url) ?: request.headers))
@@ -212,16 +226,21 @@ class DownloadEngine(
             val input = body.byteStream()
             val buf = ByteArray(BUFFER_SIZE)
             var pos = offset
-            while (pos < limit) {
-                val want = min(buf.size.toLong(), limit - pos).toInt()
+            // The end can move down while this runs (the segment was split). Bytes past it belong to another
+            // connection: they are never written, and the response is closed as soon as the end is reached.
+            while (pos < seg.limit) {
+                val want = min(buf.size.toLong(), seg.limit - pos).toInt()
                 val n = input.read(buf, 0, want)
                 if (n < 0) break
-                writeFully(channel, buf, n, pos)
-                pos += n
-                counter.addAndGet(n.toLong())
+                val allowed = table.claim(seg, pos, n)
+                if (allowed > 0) {
+                    writeFully(channel, buf, allowed, pos)
+                    pos += allowed
+                    seg.downloaded.addAndGet(allowed.toLong())
+                }
                 ctx.ensureActive()
             }
-            if (seg.end >= 0 && pos < limit) throw IOException("Connection closed early at byte $pos of ${limit - 1}")
+            if (seg.end >= 0 && pos < seg.limit) throw IOException("Connection closed early at byte $pos of ${seg.end}")
         }
     }
 

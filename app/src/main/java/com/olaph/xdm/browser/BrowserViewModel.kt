@@ -9,6 +9,7 @@ import android.os.Environment
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
+import android.view.View
 import android.view.ViewGroup
 import android.webkit.CookieManager
 import android.webkit.GeolocationPermissions
@@ -74,6 +75,9 @@ enum class BrowserPage { TAB, TABS, BOOKMARKS, HISTORY }
 /** What was long-pressed: a link, an image, or an image inside a link. */
 class LinkTarget(val tabId: Int, val linkUrl: String?, val imageUrl: String?, val videoUrl: String? = null)
 
+/** A video the page switched to fullscreen: WebView hands over [view] and expects [callback] when the app ends it. */
+class FullscreenVideo(val tabId: Int, val view: View, val callback: WebChromeClient.CustomViewCallback)
+
 class FileChooserRequest(
     val callback: ValueCallback<Array<Uri>>,
     val params: WebChromeClient.FileChooserParams,
@@ -108,6 +112,10 @@ class BrowserViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var linkMenu by mutableStateOf<LinkTarget?>(null)
     var fileChooser by mutableStateOf<FileChooserRequest?>(null)
+        private set
+
+    /** Non-null while a page shows a video in fullscreen; the screen lays it over the whole window. */
+    var fullscreen by mutableStateOf<FullscreenVideo?>(null)
         private set
 
     /** Set by the activity UI: opens the "Add download" sheet. */
@@ -149,6 +157,7 @@ class BrowserViewModel(app: Application) : AndroidViewModel(app) {
         openedByPage: Boolean = false,
         openerId: Int = -1,
     ): BrowserTab {
+        exitFullscreen()
         val tab = BrowserTab(nextId++, incognito, openedByPage, openerId)
         tabs.add(tab)
         currentId = tab.id
@@ -158,6 +167,7 @@ class BrowserViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun selectTab(id: Int) {
+        if (id != currentId) exitFullscreen()
         if (tabs.any { it.id == id }) currentId = id
         page = BrowserPage.TAB
     }
@@ -165,6 +175,7 @@ class BrowserViewModel(app: Application) : AndroidViewModel(app) {
     fun closeTab(id: Int) {
         val index = tabs.indexOfFirst { it.id == id }
         if (index < 0) return
+        if (fullscreen?.tabId == id) exitFullscreen()
         val tab = tabs.removeAt(index)
         destroy(tab)
         if (tabs.isEmpty()) {
@@ -211,6 +222,7 @@ class BrowserViewModel(app: Application) : AndroidViewModel(app) {
      * Returns false when the browser has nothing left to go back to (the caller leaves the screen).
      */
     fun handleBack(): Boolean {
+        if (fullscreen != null) { exitFullscreen(); return true }
         if (page != BrowserPage.TAB) { page = BrowserPage.TAB; return true }
         val tab = current ?: return false
         if (tab.findActive) { closeFind(tab); return true }
@@ -225,6 +237,30 @@ class BrowserViewModel(app: Application) : AndroidViewModel(app) {
         val wv = tab.webView ?: return
         applyUserAgent(tab, wv)
         if (!tab.showHome) wv.reload()
+    }
+
+    // ---- fullscreen video ----
+
+    /**
+     * Leaves fullscreen from the app's side (back, another tab, leaving the browser): WebView is told through the
+     * callback and puts the video back into the page. With [only], nothing happens if a different video is showing.
+     */
+    fun exitFullscreen(only: FullscreenVideo? = null) {
+        val fs = fullscreen ?: return
+        if (only != null && only !== fs) return
+        fullscreen = null
+        runCatching { fs.callback.onCustomViewHidden() }
+    }
+
+    private fun showFullscreen(tab: BrowserTab, view: View, callback: WebChromeClient.CustomViewCallback) {
+        if (tab.id != currentId || page != BrowserPage.TAB) {
+            callback.onCustomViewHidden() // a background tab does not get to take over the screen
+            return
+        }
+        exitFullscreen()
+        tab.mediaSheetOpen = false
+        linkMenu = null
+        fullscreen = FullscreenVideo(tab.id, view, callback)
     }
 
     // ---- find in page ----
@@ -646,6 +682,7 @@ class BrowserViewModel(app: Application) : AndroidViewModel(app) {
         when (d) {
             PopupDecision.ALLOW -> {
                 if (opener !in tabs) { destroy(child); return }
+                exitFullscreen()
                 tabs.add(child)
                 currentId = child.id
                 page = BrowserPage.TAB
@@ -723,6 +760,7 @@ class BrowserViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun destroy(tab: BrowserTab) {
+        if (fullscreen?.tabId == tab.id) exitFullscreen()
         val wv = tab.webView ?: return
         tab.webView = null
         (wv.parent as? ViewGroup)?.removeView(wv)
@@ -734,6 +772,7 @@ class BrowserViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun onRenderGone(tab: BrowserTab, wv: WebView) {
         if (tab.webView !== wv) return
+        if (fullscreen?.tabId == tab.id) fullscreen = null // its view died with the renderer
         // Keep the app alive: drop the dead WebView; the next composition creates one and reloads the page.
         tab.restoreUrl = tab.url
         tab.webView = null
@@ -891,6 +930,13 @@ class BrowserViewModel(app: Application) : AndroidViewModel(app) {
 
         override fun onReceivedTitle(view: WebView, title: String?) {
             tab.title = title.orEmpty()
+        }
+
+        override fun onShowCustomView(view: View, callback: CustomViewCallback) = showFullscreen(tab, view, callback)
+
+        // The page left fullscreen by itself (its own button, end of video, script).
+        override fun onHideCustomView() {
+            if (fullscreen?.tabId == tab.id) fullscreen = null
         }
 
         override fun onShowFileChooser(

@@ -43,6 +43,7 @@ class ShareReceiverActivity : ComponentActivity() {
 
         if (savedInstanceState == null) requestRuntimePermissions(this, permissions::launch)
         val container = (application as XdmApp).container
+        container.releaseQueue()
 
         // A shared YouTube link (the app's Share button, youtu.be, shorts, a playlist) gets the YouTube sheet.
         val youtube = YoutubeUrls.parse(url)

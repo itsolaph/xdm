@@ -7,6 +7,7 @@ import com.olaph.xdm.data.DownloadStatus
 import com.olaph.xdm.data.SegmentEntity
 import com.olaph.xdm.data.SettingsSource
 import com.olaph.xdm.engine.DownloadEngine
+import com.olaph.xdm.engine.DownloadEngineSplitTest
 import com.olaph.xdm.engine.DownloadEngineTest
 import com.olaph.xdm.engine.FilenameUtils
 import com.olaph.xdm.engine.HeaderCodec
@@ -906,6 +907,123 @@ class DownloadManagerTest {
             scope2.cancel()
         } finally {
             hls.server.shutdown()
+        }
+    }
+
+    @Test fun afterARestartTheHeldQueueOnlyRunsOnceReleased() = runBlocking {
+        // What the database looks like after the phone went down mid-download.
+        val running = dao.insert(DownloadEntity(url = url("r.bin"), fileName = "r.bin", connections = 2, status = DownloadStatus.RUNNING))
+        val queued = dao.insert(DownloadEntity(url = url("q.bin"), fileName = "q.bin", connections = 2, status = DownloadStatus.QUEUED))
+        val paused = dao.insert(DownloadEntity(url = url("p.bin"), fileName = "p.bin", connections = 2, status = DownloadStatus.PAUSED))
+        scope.cancel() // the fixture's manager is not part of this
+        val scope2 = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        try {
+            val held = DownloadManager(
+                scope2, dao, settings, DownloadEngine(OkHttpClient(), backoffMs = { 1 }, tickMs = 20, persistIntervalMs = 40),
+                files, tempDir, network, notifier, holdQueue = true,
+            )
+            held.restore()
+            waitUntil("requeued") { status(running) == DownloadStatus.QUEUED }
+            delay(200)
+            assertEquals("nothing started while held", 0, http.requests.size)
+            assertFalse(held.queueReleased.value)
+
+            held.releaseQueue()
+            waitUntil("both finished") { status(running) == DownloadStatus.COMPLETED && status(queued) == DownloadStatus.COMPLETED }
+            assertEquals("paused by the user stays paused", DownloadStatus.PAUSED, status(paused))
+        } finally {
+            scope2.cancel()
+        }
+    }
+
+    // ---- dynamic segment splitting ----
+
+    private val mib = 1024L * 1024
+
+    private fun splittingManager(scope: CoroutineScope) = DownloadManager(
+        scope, dao, settings,
+        DownloadEngine(OkHttpClient(), backoffMs = { 1 }, tickMs = 20, persistIntervalMs = 40, minSplitBytes = 256 * 1024),
+        files, tempDir, network, notifier, remuxer = remuxer,
+    )
+
+    /**
+     * Starts a 2 MiB download on two connections whose second half stalls. The first half finishes, its connection
+     * splits the second half, and the new range stalls as well; returns once that split is in the database.
+     */
+    private suspend fun startStalledSplit(
+        m: DownloadManager,
+        split: DownloadEngineSplitTest.StallingDispatcher,
+    ): Long {
+        split.holds[mib] = java.util.concurrent.CountDownLatch(1)
+        split.holds[mib + mib / 2] = java.util.concurrent.CountDownLatch(1)
+        val first = java.util.concurrent.CountDownLatch(1).also { split.holds[0] = it }
+        split.onRange = { n, _ -> if (n == 2) first.countDown() }
+        server.dispatcher = split
+        val id = m.add(url("split.bin"), "split.bin", 2, startNow = true)
+        waitUntil("split persisted") { dao.segs.value[id].orEmpty().size == 3 }
+        return id
+    }
+
+    private fun assertSplitRows(id: Long) {
+        val rows = dao.segs.value[id].orEmpty().sortedBy { it.idx }
+        assertEquals(
+            "the first half is done, the stalled half shrank, the new range starts where it ends",
+            listOf(SegmentEntity(id, 0, 0, mib - 1, mib), SegmentEntity(id, 1, mib, mib + mib / 2 - 1, 0), SegmentEntity(id, 2, mib + mib / 2, 2 * mib - 1, 0)),
+            rows,
+        )
+    }
+
+    private fun releaseStalls(split: DownloadEngineSplitTest.StallingDispatcher) {
+        split.releaseAll()
+        split.holds.clear()
+        split.onRange = { _, _ -> }
+        split.ranges.clear()
+    }
+
+    @Test fun pauseAfterASplitKeepsTheSplitAndResumeFinishesTheFile() = runBlocking {
+        val split = DownloadEngineSplitTest.StallingDispatcher(ByteArray(2 * mib.toInt()).also { Random(9).nextBytes(it) })
+        val m = splittingManager(scope)
+        try {
+            val id = startStalledSplit(m, split)
+            m.pause(id)
+            waitUntil("paused") { status(id) == DownloadStatus.PAUSED }
+            assertSplitRows(id)
+
+            releaseStalls(split)
+            m.resume(id)
+            waitUntil("completed") { status(id) == DownloadStatus.COMPLETED }
+            assertEquals(sha(split.payload), sha(files.saved.single().readBytes()))
+            val ranges = split.ranges.toList()
+            assertTrue("both open ranges were asked for: $ranges", ranges.containsAll(listOf("1048576-1572863", "1572864-2097151")))
+            assertTrue("the finished half was not fetched again: $ranges", ranges.all { it.substringBefore('-').toLong() >= mib })
+        } finally {
+            split.releaseAll()
+        }
+    }
+
+    @Test fun aKilledProcessAfterASplitResumesFromTheSavedRanges() = runBlocking {
+        val split = DownloadEngineSplitTest.StallingDispatcher(ByteArray(2 * mib.toInt()).also { Random(10).nextBytes(it) })
+        val m = splittingManager(scope)
+        try {
+            val id = startStalledSplit(m, split)
+            // The process dies: the row stays RUNNING and a new manager takes over from what is in the database.
+            scope.cancel()
+            waitUntil("old job unwound") { m.live.value[id] == null }
+            assertEquals(DownloadStatus.RUNNING, status(id))
+            assertSplitRows(id)
+
+            releaseStalls(split)
+            val scope2 = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+            try {
+                splittingManager(scope2).restore()
+                waitUntil("completed") { status(id) == DownloadStatus.COMPLETED }
+            } finally {
+                scope2.cancel()
+            }
+            assertEquals(sha(split.payload), sha(files.saved.single().readBytes()))
+            assertTrue("the finished half was not fetched again", split.ranges.none { it.startsWith("0-") })
+        } finally {
+            split.releaseAll()
         }
     }
 }
