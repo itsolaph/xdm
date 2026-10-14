@@ -1,0 +1,128 @@
+  bash arg: -p
+  bash arg: com.olaph.xdm
+  bash arg: --throttle
+  bash arg: 250
+  bash arg: --pct-syskeys
+  bash arg: 0
+  bash arg: --pct-appswitch
+  bash arg: 0
+  bash arg: -s
+  bash arg: 4242
+  bash arg: -v
+  bash arg: 300
+args: [-p, com.olaph.xdm, --throttle, 250, --pct-syskeys, 0, --pct-appswitch, 0, -s, 4242, -v, 300]
+ arg: "-p"
+ arg: "com.olaph.xdm"
+ arg: "--throttle"
+ arg: "250"
+ arg: "--pct-syskeys"
+ arg: "0"
+ arg: "--pct-appswitch"
+ arg: "0"
+ arg: "-s"
+ arg: "4242"
+ arg: "-v"
+ arg: "300"
+data="com.olaph.xdm"
+arg="--throttle" mCurArgData="null" mNextArg=3 argwas="--throttle" nextarg="250"
+data="250"
+arg="--pct-syskeys" mCurArgData="null" mNextArg=5 argwas="--pct-syskeys" nextarg="0"
+data="0"
+arg="--pct-appswitch" mCurArgData="null" mNextArg=7 argwas="--pct-appswitch" nextarg="0"
+data="0"
+data="4242"
+:Monkey: seed=4242 count=300
+:AllowPackage: com.olaph.xdm
+:IncludeCategory: android.intent.category.LAUNCHER
+:IncludeCategory: android.intent.category.MONKEY
+// Event percentages:
+//   0: 15.624999%
+//   1: 10.416666%
+//   2: 2.0833333%
+//   3: 15.624999%
+//   4: -0.0%
+//   5: -0.0%
+//   6: 26.041666%
+//   7: 15.624999%
+//   8: -0.0%
+//   9: -0.0%
+//   10: 1.0416666%
+//   11: 13.541666%
+:Switch: #Intent;action=android.intent.action.MAIN;category=android.intent.category.LAUNCHER;launchFlags=0x10200000;component=com.olaph.xdm/.ui.MainActivity;end
+    // Allowing start of Intent { act=android.intent.action.MAIN cat=[android.intent.category.LAUNCHER] cmp=com.olaph.xdm/.ui.MainActivity } in package com.olaph.xdm
+:Sending Trackball (ACTION_MOVE): 0:(-1.0,0.0)
+:Sending Touch (ACTION_DOWN): 0:(732.0,1411.0)
+:Sending Touch (ACTION_UP): 0:(734.5586,1401.4512)
+:Sending Touch (ACTION_DOWN): 0:(664.0,1719.0)
+:Sending Touch (ACTION_UP): 0:(656.80566,1721.5977)
+:Sending Trackball (ACTION_MOVE): 0:(1.0,-5.0)
+:Sending Touch (ACTION_DOWN): 0:(550.0,518.0)
+:Sending Touch (ACTION_UP): 0:(583.62695,543.84863)
+:Sending Trackball (ACTION_MOVE): 0:(2.0,3.0)
+:Sending Touch (ACTION_DOWN): 0:(377.0,1658.0)
+:Sending Touch (ACTION_UP): 0:(372.63574,1654.1807)
+:Sending Touch (ACTION_DOWN): 0:(229.0,1039.0)
+:Sending Touch (ACTION_UP): 0:(226.42578,1036.4434)
+:Sending Trackball (ACTION_MOVE): 0:(3.0,3.0)
+:Sending Touch (ACTION_DOWN): 0:(827.0,603.0)
+:Sending Touch (ACTION_UP): 0:(843.6377,587.3252)
+:Sending Trackball (ACTION_MOVE): 0:(-3.0,-1.0)
+    //[calendar_time:2026-10-14 19:57:47.870  system_uptime:131961]
+    // Sending event #100
+:Sending Trackball (ACTION_MOVE): 0:(-1.0,4.0)
+:Sending Flip keyboardOpen=false
+Got IOException performing flipjava.io.FileNotFoundException: /dev/input/event0: open failed: EACCES (Permission denied)
+    // Injection Failed
+:Sending Touch (ACTION_DOWN): 0:(256.0,829.0)
+:Sending Touch (ACTION_UP): 0:(251.01367,832.0117)
+:Sending Touch (ACTION_DOWN): 0:(185.0,2115.0)
+:Sending Touch (ACTION_UP): 0:(186.44727,2099.8037)
+:Sending Touch (ACTION_DOWN): 0:(907.0,1542.0)
+:Sending Touch (ACTION_UP): 0:(827.79395,1531.6816)
+    // Rejecting start of Intent { cmp=com.android.inputmethod.latin/.permissions.PermissionsActivity } in package com.android.inputmethod.latin
+:Sending Trackball (ACTION_MOVE): 0:(-4.0,-1.0)
+:Sending Touch (ACTION_DOWN): 0:(487.0,1483.0)
+:Sending Touch (ACTION_UP): 0:(499.0205,1489.084)
+:Sending Touch (ACTION_DOWN): 0:(410.0,583.0)
+:Sending Touch (ACTION_UP): 0:(368.87988,604.4248)
+:Sending Trackball (ACTION_MOVE): 0:(-3.0,0.0)
+:Sending Touch (ACTION_DOWN): 0:(69.0,463.0)
+:Sending Touch (ACTION_UP): 0:(63.908203,478.3711)
+:Sending Touch (ACTION_DOWN): 0:(418.0,1522.0)
+:Sending Touch (ACTION_UP): 0:(414.8252,1515.3027)
+    // Rejecting start of Intent { cmp=com.android.inputmethod.latin/.permissions.PermissionsActivity } in package com.android.inputmethod.latin
+:Sending Touch (ACTION_DOWN): 0:(699.0,97.0)
+:Sending Touch (ACTION_UP): 0:(721.24316,91.94336)
+:Sending Touch (ACTION_DOWN): 0:(49.0,2072.0)
+:Sending Touch (ACTION_UP): 0:(0.0,2005.165)
+    //[calendar_time:2026-10-14 19:57:53.061  system_uptime:137144]
+    // Sending event #200
+    //[calendar_time:2026-10-14 19:57:53.311  system_uptime:137395]
+    // Sending event #200
+:Sending Touch (ACTION_DOWN): 0:(985.0,1591.0)
+:Sending Touch (ACTION_UP): 0:(934.16504,1529.6025)
+:Sending Flip keyboardOpen=true
+Got IOException performing flipjava.io.FileNotFoundException: /dev/input/event0: open failed: EACCES (Permission denied)
+    // Injection Failed
+:Sending Touch (ACTION_DOWN): 0:(727.0,408.0)
+:Sending Touch (ACTION_UP): 0:(738.5205,440.05957)
+:Sending Touch (ACTION_DOWN): 0:(792.0,461.0)
+:Sending Touch (ACTION_UP): 0:(697.4971,396.85547)
+:Sending Trackball (ACTION_MOVE): 0:(-3.0,2.0)
+:Sending Touch (ACTION_DOWN): 0:(154.0,715.0)
+:Sending Touch (ACTION_UP): 0:(167.30957,714.19434)
+:Sending Trackball (ACTION_MOVE): 0:(3.0,0.0)
+:Sending Trackball (ACTION_MOVE): 0:(-3.0,2.0)
+:Sending Trackball (ACTION_MOVE): 0:(3.0,3.0)
+:Sending Touch (ACTION_DOWN): 0:(62.0,67.0)
+:Sending Touch (ACTION_UP): 0:(59.871094,65.40918)
+:Sending Touch (ACTION_DOWN): 0:(883.0,2008.0)
+:Sending Touch (ACTION_UP): 0:(875.459,2015.8848)
+:Sending Touch (ACTION_DOWN): 0:(555.0,1153.0)
+:Sending Touch (ACTION_UP): 0:(508.55273,1109.3584)
+:Sending Trackball (ACTION_MOVE): 0:(1.0,2.0)
+Events injected: 300
+:Sending rotation degree=0, persist=false
+:Dropped: keys=0 pointers=0 trackballs=0 flips=2 rotations=0
+## Network stats: elapsed time=15594ms (0ms mobile, 0ms wifi, 15594ms not connected)
+// Monkey finished

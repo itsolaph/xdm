@@ -1,0 +1,2 @@
+--------- beginning of main
+10-14 19:57:28.092  2649  2649 I YTTEST  : YTTEST BLOCKED BOT_CHECK: YouTube asked to confirm you're not a bot. Open YouTube in your browser, finish the check, and try again later.

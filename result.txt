@@ -1,0 +1,8 @@
+PASS
+ok   cold start
+ok   tab Browser
+ok   dark mode
+ok   resume from background
+YTTEST BLOCKED BOT_CHECK: YouTube asked to confirm you're not a bot. Open YouTube in your browser, finish the check, and try again later.
+VAULTTEST PASS size=165623B mediastore=0 ready=518ms advanced=510ms duration=10000ms resume=6000ms cleaned
+ok   monkey 300 events
