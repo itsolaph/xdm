@@ -1,11 +1,13 @@
 package com.olaph.xdm.ui
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
+import androidx.fragment.app.FragmentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
@@ -23,6 +25,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -37,7 +40,8 @@ import com.olaph.xdm.XdmApp
 import com.olaph.xdm.browser.BrowserPage
 import com.olaph.xdm.browser.BrowserViewModel
 
-class MainActivity : ComponentActivity() {
+// A FragmentActivity because BiometricPrompt (private folder unlock) needs one.
+class MainActivity : FragmentActivity() {
     private val vm: MainViewModel by viewModels()
     private val browserVm: BrowserViewModel by viewModels()
     private val permissions =
@@ -48,8 +52,25 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         // Opening the app (also from the "ready to resume" notification) lets queued downloads run.
         (application as XdmApp).container.releaseQueue()
-        if (savedInstanceState == null) requestRuntimePermissions(this, permissions::launch)
+        if (savedInstanceState == null) {
+            requestRuntimePermissions(this, permissions::launch)
+            handle(intent)
+        }
         setContent { XdmRoot(vm, browserVm) }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handle(intent)
+    }
+
+    private fun handle(intent: Intent?) {
+        if (intent?.action == ACTION_OPEN_PRIVATE) vm.openPrivateRequest.value = true
+    }
+
+    companion object {
+        /** From a private download's notification: show the private folder (which asks for the PIN). */
+        const val ACTION_OPEN_PRIVATE = "com.olaph.xdm.OPEN_PRIVATE"
     }
 
     // Clipboard reads are only allowed once the window has focus (Android 10+).
@@ -75,18 +96,28 @@ private const val ROUTE_LIST = "list"
 private const val ROUTE_DETAIL = "detail"
 private const val ROUTE_SETTINGS = "settings"
 private const val ROUTE_BROWSER = "browser"
+private const val ROUTE_PRIVATE = "private"
 
 @Composable
 fun XdmRoot(vm: MainViewModel, browser: BrowserViewModel) {
     val settings by vm.settings.collectAsStateWithLifecycle()
     val showSheet by vm.showAddSheet.collectAsStateWithLifecycle()
     val sheetPrefill by vm.addSheetPrefill.collectAsStateWithLifecycle()
+    val vaultReady by vm.vaultReady.collectAsStateWithLifecycle()
+    val openPrivate by vm.openPrivateRequest.collectAsStateWithLifecycle()
 
     XdmTheme(settings.theme) {
         var route by rememberSaveable { mutableStateOf(ROUTE_LIST) }
         // Where detail/settings return to (they can be opened from either bottom tab).
         var backRoute by rememberSaveable { mutableStateOf(ROUTE_LIST) }
         var detailId by rememberSaveable { mutableLongStateOf(-1L) }
+
+        LaunchedEffect(openPrivate) {
+            if (openPrivate) {
+                vm.openPrivateRequest.value = false
+                route = ROUTE_PRIVATE
+            }
+        }
 
         // Downloads started in the browser open the same add sheet as every other entry point.
         DisposableEffect(browser) {
@@ -102,6 +133,10 @@ fun XdmRoot(vm: MainViewModel, browser: BrowserViewModel) {
             ROUTE_SETTINGS -> {
                 BackHandler { route = backRoute }
                 SettingsScreen(vm, onBack = { route = backRoute })
+            }
+            ROUTE_PRIVATE -> {
+                BackHandler { route = ROUTE_LIST }
+                PrivateScreen(onBack = { route = ROUTE_LIST })
             }
             else -> {
                 val inBrowser = route == ROUTE_BROWSER
@@ -136,6 +171,7 @@ fun XdmRoot(vm: MainViewModel, browser: BrowserViewModel) {
                                 vm,
                                 onOpenDetail = { detailId = it; backRoute = ROUTE_LIST; route = ROUTE_DETAIL },
                                 onOpenSettings = { backRoute = ROUTE_LIST; route = ROUTE_SETTINGS },
+                                onOpenPrivate = { route = ROUTE_PRIVATE },
                             )
                         }
                     }
@@ -148,6 +184,8 @@ fun XdmRoot(vm: MainViewModel, browser: BrowserViewModel) {
                 container = vm.container,
                 prefill = sheetPrefill,
                 defaultConnections = settings.connections,
+                privateAvailable = vaultReady,
+                defaultPrivate = settings.savePrivateByDefault,
                 onDismiss = vm::closeAddSheet,
                 onAdded = vm::closeAddSheet,
                 onYoutube = vm::openYoutube,
@@ -167,6 +205,8 @@ fun XdmRoot(vm: MainViewModel, browser: BrowserViewModel) {
                 link = link,
                 defaultQuality = settings.youtubeQuality,
                 connections = settings.connections,
+                privateAvailable = vaultReady,
+                defaultPrivate = settings.savePrivateByDefault,
                 onDismiss = vm::closeYoutube,
                 onDone = {
                     vm.closeYoutube()

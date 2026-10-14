@@ -49,6 +49,8 @@ import com.olaph.xdm.adblock.UpdateState
 import com.olaph.xdm.core.RestartResume
 import com.olaph.xdm.crash.TestReportResult
 import com.olaph.xdm.data.AppSettings
+import com.olaph.xdm.data.AutoLockDelay
+import com.olaph.xdm.data.MediaOpener
 import com.olaph.xdm.data.ThemeMode
 import com.olaph.xdm.engine.SearchEngine
 import com.olaph.xdm.youtube.YoutubeQuality
@@ -119,6 +121,55 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit) {
                     )
                 }
                 Switch(checked = settings.resumeAfterRestart, onCheckedChange = vm::setResumeAfterRestart)
+            }
+            HorizontalDivider(Modifier.padding(vertical = 8.dp))
+
+            Text("Open media with", style = MaterialTheme.typography.titleSmall)
+            Text(
+                "What tapping a finished video or audio file does. \"Open with…\" in the item's menu always offers other apps.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            MediaOpener.entries.forEach { opener ->
+                Row(
+                    Modifier.fillMaxWidth().clickable { vm.setOpenMediaWith(opener) },
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    RadioButton(selected = settings.openMediaWith == opener, onClick = { vm.setOpenMediaWith(opener) })
+                    Text(opener.label)
+                }
+            }
+            HorizontalDivider(Modifier.padding(vertical = 8.dp))
+
+            Text("Private folder", style = MaterialTheme.typography.titleMedium)
+            Row(
+                Modifier.fillMaxWidth().clickable { vm.setSavePrivateByDefault(!settings.savePrivateByDefault) }.padding(vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("Save new downloads to private folder", style = MaterialTheme.typography.titleSmall)
+                    Text(
+                        "Ticks \"Save to private folder\" in the add sheets by default. Needs a PIN (lock icon in Downloads).",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(checked = settings.savePrivateByDefault, onCheckedChange = vm::setSavePrivateByDefault)
+            }
+            Text("Lock the private folder", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 4.dp))
+            Text(
+                "When XDM goes to the background. Turning the screen off always locks it.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            AutoLockDelay.entries.forEach { delay ->
+                Row(
+                    Modifier.fillMaxWidth().clickable { vm.setAutoLockDelay(delay) },
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    RadioButton(selected = settings.autoLockDelay == delay, onClick = { vm.setAutoLockDelay(delay) })
+                    Text(delay.label)
+                }
             }
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
 

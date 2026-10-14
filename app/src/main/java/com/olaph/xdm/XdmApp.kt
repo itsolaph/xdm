@@ -17,6 +17,8 @@ import com.olaph.xdm.engine.DownloadEngine
 import com.olaph.xdm.engine.HlsEngine
 import com.olaph.xdm.service.DownloadService
 import com.olaph.xdm.service.NotificationHelper
+import com.olaph.xdm.vault.VaultLock
+import com.olaph.xdm.vault.VaultStore
 import com.olaph.xdm.youtube.NewPipeResolver
 import com.olaph.xdm.youtube.YoutubeResolver
 import kotlinx.coroutines.CoroutineScope
@@ -47,6 +49,15 @@ class AppContainer(private val app: Application) {
     val fileSaver = FileSaver(app)
     val notifications = NotificationHelper(app, fileSaver)
     val network = NetworkMonitor(app)
+
+    /** The private folder (app-internal storage) and its PIN lock. */
+    val vault = VaultStore(File(app.filesDir, VaultStore.DIR_NAME))
+    val vaultLock = VaultLock(app, scope, settings)
+
+    // Partial downloads (private ones included) wait here until they are finished; keep the gallery out of it.
+    private val tempDir = (app.getExternalFilesDir("downloads") ?: app.filesDir.resolve("downloads")).also { dir ->
+        runCatching { dir.mkdirs(); File(dir, ".nomedia").createNewFile() }
+    }
 
     val httpClient: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(20, TimeUnit.SECONDS)
@@ -81,13 +92,14 @@ class AppContainer(private val app: Application) {
         settings = settings,
         engine = DownloadEngine(httpClient),
         fileSaver = fileSaver,
-        tempDir = (app.getExternalFilesDir("downloads") ?: app.filesDir.resolve("downloads")),
+        tempDir = tempDir,
         network = network,
         notifier = notifications,
         hlsEngine = HlsEngine(httpClient),
         youtube = youtube,
         // The process may have been started by the system (reboot, app update); see releaseQueue().
         holdQueue = true,
+        privateStore = vault,
     )
 
     /** Downloads may run in this process: an activity is on screen or the foreground service is up. */
@@ -97,6 +109,7 @@ class AppContainer(private val app: Application) {
     }
 
     fun start() {
+        vaultLock.start()
         manager.restore()
         // Ad blocker: settings first (cheap), then the filter lists off the main thread (compiled cache when nothing
         // changed). Until both are in, nothing is blocked. Toggling a list in Settings reloads.

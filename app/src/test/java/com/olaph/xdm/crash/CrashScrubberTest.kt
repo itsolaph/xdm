@@ -34,6 +34,17 @@ class CrashScrubberTest {
         assertEquals("cannot open <path>", CrashScrubber.scrub("cannot open /storage/emulated/0/Android/data/com.olaph.xdm/files/downloads/clip 1.part"))
     }
 
+    @Test fun `private folder paths and names never reach a report`() {
+        val out = CrashScrubber.scrub(
+            "java.io.FileNotFoundException: /data/user/0/com.olaph.xdm/files/private/My Holiday.mp4: open failed: EACCES\n" +
+                "Caused by: java.io.IOException: rename failed /data/data/com.olaph.xdm/files/private/.My Holiday.mp4.part\n" +
+                "Caused by: java.lang.IllegalStateException: bad file:///data/user/0/com.olaph.xdm/files/private/My%20Holiday.mp4",
+        )
+        assertFalse(out, out.contains("Holiday"))
+        assertFalse(out, out.contains("private/"))
+        assertTrue(out.contains("FileNotFoundException: <path>: open failed: EACCES"))
+    }
+
     @Test fun `class names and code frames are left alone`() {
         val frame = "\tat com.olaph.xdm.engine.DownloadEngine.run(DownloadEngine.kt:120)"
         assertEquals(frame, CrashScrubber.scrub(frame))

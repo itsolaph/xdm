@@ -18,4 +18,6 @@ data class PendingDownload(
     val kind: String = com.olaph.xdm.data.DownloadKind.HTTP,
     /** True when [contentLength] is an estimate (HLS bandwidth × duration). */
     val lengthEstimated: Boolean = false,
+    /** Chosen in the browser's video sheet; null = the add sheet uses the default from Settings. */
+    val isPrivate: Boolean? = null,
 )

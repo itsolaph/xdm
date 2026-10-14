@@ -124,6 +124,12 @@ class BrowserViewModel(app: Application) : AndroidViewModel(app) {
     /** Opens the YouTube sheet (set by the main screen, like [downloadHandler]). */
     var youtubeHandler: ((YoutubeLink) -> Unit)? = null
 
+    /** The video sheet's "Save to private folder" box; null = not touched, the default from Settings applies. */
+    var mediaSavePrivate by mutableStateOf<Boolean?>(null)
+
+    /** A PIN exists, so the private folder can take downloads. */
+    val vaultReady: StateFlow<Boolean> = container.vaultLock.pinSet.stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
     val bookmarks: StateFlow<List<BookmarkEntity>> =
         dao.observeBookmarks().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
     val history: StateFlow<List<HistoryEntity>> =
@@ -472,6 +478,7 @@ class BrowserViewModel(app: Application) : AndroidViewModel(app) {
                 pageUrl = tab.url,
                 kind = if (option.hls) DownloadKind.HLS else DownloadKind.HTTP,
                 lengthEstimated = option.sizeEstimated,
+                isPrivate = mediaSavePrivate,
             ),
         )
         tab.mediaSheetOpen = false

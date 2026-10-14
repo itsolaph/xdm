@@ -46,6 +46,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.olaph.xdm.browser.BrowserTab
 import com.olaph.xdm.browser.BrowserViewModel
 import com.olaph.xdm.core.Formatters
@@ -103,6 +104,9 @@ fun MediaSheet(vm: BrowserViewModel, tab: BrowserTab) {
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 2.dp),
             )
+            val vaultReady by vm.vaultReady.collectAsStateWithLifecycle()
+            val savePrivate = (vm.mediaSavePrivate ?: vm.settings.savePrivateByDefault) && vaultReady
+            PrivateCheckbox(savePrivate, vaultReady, { vm.mediaSavePrivate = it }, Modifier.padding(horizontal = 8.dp))
             if (items.isEmpty()) {
                 Text(
                     "Nothing found yet. Start playing the video and it will show up here.",

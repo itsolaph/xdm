@@ -16,7 +16,7 @@ object FileActions {
     private fun mimeOf(d: DownloadEntity): String =
         MimeTypes.forFileName(d.fileName) ?: d.mimeType?.takeIf { it != MimeTypes.OCTET_STREAM } ?: "*/*"
 
-    fun open(context: Context, container: AppContainer, d: DownloadEntity) {
+    fun open(context: Context, container: AppContainer, d: DownloadEntity, chooser: Boolean = false) {
         val location = d.savedLocation
         if (location == null || !container.fileSaver.exists(location)) {
             Toast.makeText(context, "File not found (moved or deleted)", Toast.LENGTH_SHORT).show()
@@ -40,11 +40,14 @@ object FileActions {
             .setDataAndType(container.fileSaver.uriFor(location), mime)
             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
         try {
-            context.startActivity(intent)
+            context.startActivity(if (chooser) Intent.createChooser(intent, "Open with").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) else intent)
         } catch (_: ActivityNotFoundException) {
             Toast.makeText(context, "No app can open this file", Toast.LENGTH_SHORT).show()
         }
     }
+
+    /** "Open with…": always asks which app, even for videos the built-in player would take. */
+    fun openWith(context: Context, container: AppContainer, d: DownloadEntity) = open(context, container, d, chooser = true)
 
     fun share(context: Context, container: AppContainer, d: DownloadEntity) {
         val location = d.savedLocation

@@ -73,6 +73,16 @@ abstract class DownloadDao {
     @Query("UPDATE downloads SET extra = :extra, fileName = :name, totalBytes = :total, mimeType = :mime, acceptRanges = 1 WHERE id = :id")
     abstract suspend fun setYoutubePlan(id: Long, extra: String?, name: String, total: Long, mime: String?)
 
+    /** A finished file changed place (moved into or out of the private folder, renamed there). */
+    @Query("UPDATE downloads SET savedLocation = :location, savedPath = :path, fileName = :name, isPrivate = :isPrivate WHERE id = :id")
+    abstract suspend fun setSavedFile(id: Long, location: String, path: String, name: String, isPrivate: Boolean)
+
+    @Query("UPDATE downloads SET playbackPositionMs = :positionMs WHERE id = :id")
+    abstract suspend fun setPlaybackPosition(id: Long, positionMs: Long)
+
+    @Query("SELECT id FROM downloads WHERE isPrivate = 1")
+    abstract suspend fun privateIds(): List<Long>
+
     /** HLS progress: finished segments, segments in the playlist, bytes on disk. */
     @Query("UPDATE downloads SET segmentsDone = :done, segmentsTotal = :total, downloadedBytes = :bytes WHERE id = :id")
     abstract suspend fun setHlsProgress(id: Long, done: Int, total: Int, bytes: Long)
@@ -121,7 +131,7 @@ abstract class DownloadDao {
 
 @Database(
     entities = [DownloadEntity::class, SegmentEntity::class, BookmarkEntity::class, HistoryEntity::class],
-    version = 4,
+    version = 5,
     exportSchema = true,
 )
 abstract class XdmDatabase : RoomDatabase() {

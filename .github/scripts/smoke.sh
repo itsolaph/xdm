@@ -2,7 +2,7 @@
 # Emulator smoke test, run by .github/workflows/android.yml (job "smoke") inside
 # reactivecircus/android-emulator-runner. Installs the debug APK, opens the app, taps through
 # every bottom-navigation item it can find, checks dark mode, runs the YouTube end-to-end self-test (debug-only
-# activity; BLOCKED by YouTube is not a failure), then lets monkey poke at it.
+# activity; BLOCKED by YouTube is not a failure) and the private folder self-test, then lets monkey poke at it.
 # Output in $OUT: numbered screenshots, result.txt (PASS/FAIL + reasons), crash.txt if anything died.
 # Usage: smoke.sh <package> <apk>
 set -u
@@ -109,6 +109,23 @@ case "$yt_line" in
   "YTTEST FAIL"*) note "$yt_line"; fail=1 ;;
   *) note "YTTEST FAIL no result within 180 s"; fail=1 ;;
 esac
+
+# Private folder + player self-test (debug-only VaultTestActivity, no network): logs one line, which goes into result.txt.
+#   VAULTTEST PASS <details>   VAULTTEST FAIL <reason>   (or no line within 90 s = FAIL)
+adb shell am start -n "$PKG/.debug.VaultTestActivity" >/dev/null 2>&1
+vt_line=""
+vt_deadline=$(( $(date +%s) + 90 ))
+while [ "$(date +%s)" -lt "$vt_deadline" ]; do
+  vt_line=$(adb logcat -d -s VAULTTEST:I 2>/dev/null | tr -d '\r' | sed -nE 's/^.*(VAULTTEST (PASS|FAIL).*)$/\1/p' | tail -1)
+  [ -n "$vt_line" ] && break
+  sleep 2
+done
+case "$vt_line" in
+  "VAULTTEST PASS"*) note "$vt_line" ;;
+  "VAULTTEST FAIL"*) note "$vt_line"; fail=1 ;;
+  *) note "VAULTTEST FAIL no result within 90 s"; fail=1 ;;
+esac
+
 launch </dev/null  # back to the main screen (this also stops the test activity) before the monkey run
 
 # Random UI poking. Network is not mocked, so this is about crashes, not features.

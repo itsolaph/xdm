@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 11 and older (only matters if backups are ever switched on): keep the private folder and its PIN out. -->
+<full-backup-content>
+    <exclude domain="file" path="private/" />
+    <exclude domain="file" path="datastore/vault.preferences_pb" />
+</full-backup-content>

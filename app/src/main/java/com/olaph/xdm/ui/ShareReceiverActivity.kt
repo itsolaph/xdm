@@ -7,6 +7,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -50,6 +51,7 @@ class ShareReceiverActivity : ComponentActivity() {
 
         setContent {
             val settings by produceState<AppSettings?>(initialValue = null) { value = container.settings.current() }
+            val vaultReady by container.vaultLock.pinSet.collectAsState(initial = false)
             var link by remember { mutableStateOf(youtube) }
             settings?.let { s ->
                 XdmTheme(s.theme) {
@@ -60,6 +62,8 @@ class ShareReceiverActivity : ComponentActivity() {
                             link = current,
                             defaultQuality = s.youtubeQuality,
                             connections = s.connections,
+                            privateAvailable = vaultReady,
+                            defaultPrivate = s.savePrivateByDefault,
                             onDismiss = { finish() },
                             onDone = {
                                 Toast.makeText(this@ShareReceiverActivity, it, Toast.LENGTH_SHORT).show()
@@ -71,6 +75,8 @@ class ShareReceiverActivity : ComponentActivity() {
                             container = container,
                             prefill = PendingDownload(url),
                             defaultConnections = s.connections,
+                            privateAvailable = vaultReady,
+                            defaultPrivate = s.savePrivateByDefault,
                             onDismiss = { finish() },
                             onAdded = {
                                 Toast.makeText(this@ShareReceiverActivity, "Download added", Toast.LENGTH_SHORT).show()

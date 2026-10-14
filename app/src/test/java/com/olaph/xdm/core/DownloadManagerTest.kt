@@ -104,6 +104,11 @@ class DownloadManagerTest {
         override suspend fun setHlsProgress(id: Long, done: Int, total: Int, bytes: Long) {
             mutate(id) { it.copy(segmentsDone = done, segmentsTotal = total, downloadedBytes = bytes) }
         }
+        override suspend fun setSavedFile(id: Long, location: String, path: String, name: String, isPrivate: Boolean) {
+            mutate(id) { it.copy(savedLocation = location, savedPath = path, fileName = name, isPrivate = isPrivate) }
+        }
+        override suspend fun setPlaybackPosition(id: Long, positionMs: Long) { mutate(id) { it.copy(playbackPositionMs = positionMs) } }
+        override suspend fun privateIds(): List<Long> = rows.value.filter { it.isPrivate }.map { it.id }
         override suspend fun getSegments(id: Long) = segs.value[id].orEmpty().sortedBy { it.idx }
         override fun observeSegments(id: Long): Flow<List<SegmentEntity>> = segs.map { it[id].orEmpty() }
         override suspend fun upsertSegments(segments: List<SegmentEntity>) {
@@ -185,12 +190,19 @@ class DownloadManagerTest {
             deleted += location
             return if (f.delete()) DeleteStatus.DELETED else DeleteStatus.FAILED
         }
+        /** Locations whose content cannot be read (the copy into the private folder fails). */
+        val unreadable = CopyOnWriteArrayList<String>()
+        override fun open(location: String): java.io.InputStream {
+            if (location in unreadable) throw java.io.IOException("read error")
+            return File(location).inputStream()
+        }
     }
 
     internal class RecordingNotifier : DownloadNotifier {
         val completed = CopyOnWriteArrayList<Long>()
+        val completedEntities = CopyOnWriteArrayList<DownloadEntity>()
         val failed = CopyOnWriteArrayList<DownloadEntity>()
-        override fun onCompleted(download: DownloadEntity) { completed += download.id }
+        override fun onCompleted(download: DownloadEntity) { completedEntities += download; completed += download.id }
         override fun onFailed(download: DownloadEntity) { failed += download }
     }
 

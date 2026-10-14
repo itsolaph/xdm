@@ -15,9 +15,9 @@ data class DeleteSummary(
 )
 
 object DeleteScope {
-    /** The items "Delete all" acts on: exactly those the selected tab shows. */
+    /** The items "Delete all" acts on: exactly those the selected tab shows, and never anything private. */
     fun inFilter(items: List<DownloadEntity>, filter: Filter): List<DownloadEntity> =
-        items.filter { filter.matches(it.status) }
+        items.filter { !it.isPrivate && filter.matches(it.status) }
 
     fun summarize(items: List<DownloadEntity>): DeleteSummary {
         val completed = items.filter { it.status == DownloadStatus.COMPLETED }

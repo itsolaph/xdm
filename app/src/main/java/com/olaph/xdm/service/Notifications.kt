@@ -61,6 +61,17 @@ class NotificationHelper(
         PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
     )
 
+    /** The private folder's screen, which asks for the PIN first; never the file itself. */
+    private fun openPrivate(): PendingIntent = PendingIntent.getActivity(
+        context, PRIVATE_REQUEST,
+        Intent(context, MainActivity::class.java).setAction(MainActivity.ACTION_OPEN_PRIVATE).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
+        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+    )
+
+    private fun NotificationCompat.Builder.privacy(d: DownloadEntity) = apply {
+        if (d.isPrivate) setVisibility(NotificationCompat.VISIBILITY_SECRET)
+    }
+
     private fun action(action: String, id: Long?, requestCode: Int): PendingIntent {
         val intent = Intent(context, DownloadService::class.java).setAction(action)
         if (id != null) intent.putExtra(DownloadService.EXTRA_ID, id)
@@ -107,8 +118,9 @@ class NotificationHelper(
         val running = d.status == DownloadStatus.RUNNING
         val b = NotificationCompat.Builder(context, CHANNEL_PROGRESS)
             .setSmallIcon(if (running) R.drawable.ic_stat_download else R.drawable.ic_stat_pause)
-            .setContentTitle(d.fileName)
-            .setContentIntent(openApp())
+            .setContentTitle(NotificationText.title(d))
+            .setContentIntent(if (d.isPrivate) openPrivate() else openApp())
+            .privacy(d)
             .setOngoing(running || d.status == DownloadStatus.QUEUED)
             .setOnlyAlertOnce(true)
             .setSilent(true)
@@ -175,7 +187,7 @@ class NotificationHelper(
     override fun onCompleted(download: DownloadEntity) {
         cancel(download.id)
         val location = download.savedLocation
-        val open = location?.let {
+        val open = if (download.isPrivate) openPrivate() else location?.let {
             val uri = fileSaver.uriFor(it)
             val mime = MimeTypes.forFileName(download.fileName) ?: download.mimeType ?: "*/*"
             PendingIntent.getActivity(
@@ -187,9 +199,10 @@ class NotificationHelper(
         } ?: openApp()
         val n = NotificationCompat.Builder(context, CHANNEL_DONE)
             .setSmallIcon(R.drawable.ic_stat_done)
-            .setContentTitle(download.fileName)
-            .setContentText("Download complete · ${Formatters.bytes(download.totalBytes)}")
+            .setContentTitle(NotificationText.title(download))
+            .setContentText(NotificationText.completed(download))
             .setContentIntent(open)
+            .privacy(download)
             .setAutoCancel(true)
             .setCategory(NotificationCompat.CATEGORY_STATUS)
             .build()
@@ -200,9 +213,10 @@ class NotificationHelper(
         cancel(download.id)
         val n = NotificationCompat.Builder(context, CHANNEL_DONE)
             .setSmallIcon(R.drawable.ic_stat_error)
-            .setContentTitle(download.fileName)
-            .setContentText("Download failed" + (download.error?.let { ": $it" } ?: ""))
-            .setContentIntent(openApp())
+            .setContentTitle(NotificationText.title(download))
+            .setContentText(NotificationText.failed(download))
+            .setContentIntent(if (download.isPrivate) openPrivate() else openApp())
+            .privacy(download)
             .setAutoCancel(true)
             .addAction(0, "Retry", action(DownloadService.ACTION_RESUME, download.id, requestCode(download.id, 1)))
             .setCategory(NotificationCompat.CATEGORY_ERROR)
@@ -219,6 +233,7 @@ class NotificationHelper(
         const val RESUME_PROMPT_ID = 2
         // Per-download request codes are id * 4 + 0..3 (ids start at 1), so -1 never collides.
         private const val RESUME_PROMPT_REQUEST = -1
+        private const val PRIVATE_REQUEST = -2
         fun progressId(id: Long) = 10_000 + (id % 1_000_000).toInt()
         fun doneId(id: Long) = 2_000_000 + (id % 1_000_000).toInt()
     }

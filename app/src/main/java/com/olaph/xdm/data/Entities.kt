@@ -49,6 +49,10 @@ data class DownloadEntity(
     @ColumnInfo(defaultValue = "0") val segmentsTotal: Int = 0,
     /** Kind-specific state; for [DownloadKind.YOUTUBE] the encoded [com.olaph.xdm.youtube.YtPlan]. */
     val extra: String? = null,
+    /** Lives in the private folder (app-internal storage) instead of Download/XDM; only shown behind the lock. */
+    @ColumnInfo(defaultValue = "0") val isPrivate: Boolean = false,
+    /** Where the built-in player stopped; 0 = start from the beginning. */
+    @ColumnInfo(defaultValue = "0") val playbackPositionMs: Long = 0,
 ) {
     val isHls: Boolean get() = kind == DownloadKind.HLS
     val isYoutube: Boolean get() = kind == DownloadKind.YOUTUBE

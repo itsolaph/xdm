@@ -2,4 +2,6 @@
 <paths>
     <!-- Used only on API 26-28, where finished files are plain files in Download/XDM -->
     <external-path name="xdm_downloads" path="Download/XDM/" />
+    <!-- Private folder: only reachable through a one-off grant (Share / Open with, after a warning) -->
+    <files-path name="private" path="private/" />
 </paths>

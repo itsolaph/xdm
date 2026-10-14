@@ -28,7 +28,10 @@ import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Android
+import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteSweep
@@ -89,10 +92,11 @@ import com.olaph.xdm.data.DownloadEntity
 import com.olaph.xdm.data.DownloadStatus
 import com.olaph.xdm.engine.MimeTypes
 import com.olaph.xdm.engine.SegmentPlanner
+import com.olaph.xdm.player.PlayerLauncher
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ListScreen(vm: MainViewModel, onOpenDetail: (Long) -> Unit, onOpenSettings: () -> Unit) {
+fun ListScreen(vm: MainViewModel, onOpenDetail: (Long) -> Unit, onOpenSettings: () -> Unit, onOpenPrivate: () -> Unit) {
     val context = LocalContext.current
     val items by vm.items.collectAsStateWithLifecycle()
     val waitingForWifi by vm.waitingForWifi.collectAsStateWithLifecycle()
@@ -106,7 +110,7 @@ fun ListScreen(vm: MainViewModel, onOpenDetail: (Long) -> Unit, onOpenSettings: 
     val deleteProgress by vm.deleteProgress.collectAsStateWithLifecycle()
     val selecting = selected.isNotEmpty()
     val shown = items?.filter { filter.matches(it.entity.status) }
-    val scoped = shown.orEmpty().map { it.entity }
+    val scoped = DeleteScope.inFilter(shown.orEmpty().map { it.entity }, filter)
 
     BackHandler(enabled = selecting) { vm.clearSelection() }
 
@@ -154,6 +158,7 @@ fun ListScreen(vm: MainViewModel, onOpenDetail: (Long) -> Unit, onOpenSettings: 
                 TopAppBar(
                     title = { Text("XDM") },
                     actions = {
+                        IconButton(onClick = onOpenPrivate) { Icon(Icons.Filled.Lock, "Private folder") }
                         IconButton(onClick = { vm.pauseAll() }) { Icon(Icons.Filled.PauseCircle, "Pause all") }
                         IconButton(onClick = { vm.resumeAll() }) { Icon(Icons.Filled.PlayCircle, "Resume all") }
                         IconButton(onClick = onOpenSettings) { Icon(Icons.Filled.Settings, "Settings") }
@@ -211,9 +216,18 @@ fun ListScreen(vm: MainViewModel, onOpenDetail: (Long) -> Unit, onOpenSettings: 
                             vm = vm,
                             selecting = selecting,
                             checked = item.entity.id in selected,
-                            onClick = { if (selecting) vm.toggleSelected(item.entity.id) else onOpenDetail(item.entity.id) },
+                            onClick = {
+                                val d = item.entity
+                                when {
+                                    selecting -> vm.toggleSelected(d.id)
+                                    // A finished video or audio file plays; everything else shows its details.
+                                    d.status == DownloadStatus.COMPLETED && PlayerLauncher.isMedia(d) -> vm.open(context, d)
+                                    else -> onOpenDetail(d.id)
+                                }
+                            },
                             onLongClick = { if (!selecting) vm.toggleSelected(item.entity.id) },
                             onDelete = { pendingDelete = item.entity },
+                            onDetails = { onOpenDetail(item.entity.id) },
                         )
                     }
                 }
@@ -316,6 +330,7 @@ private fun DownloadRow(
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     onDelete: () -> Unit,
+    onDetails: () -> Unit,
 ) {
     val d = item.entity
     Card(
@@ -327,7 +342,7 @@ private fun DownloadRow(
                 Checkbox(checked = checked, onCheckedChange = { onClick() })
                 Spacer(Modifier.width(4.dp))
             }
-            FileTypeIcon(d.fileName, d.mimeType)
+            DownloadIcon(d)
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -362,13 +377,25 @@ private fun DownloadRow(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            if (!selecting) RowActions(d, vm, onDelete)
+            if (!selecting) RowActions(d, vm, onDelete, onDetails)
         }
     }
 }
 
+/** A finished video gets its thumbnail, everything else the file type icon. */
 @Composable
-fun RowActions(d: DownloadEntity, vm: MainViewModel, onDelete: () -> Unit) {
+private fun DownloadIcon(d: DownloadEntity) {
+    if (d.status == DownloadStatus.COMPLETED && PlayerLauncher.isMedia(d)) {
+        MediaThumbnail(d, Modifier.size(width = 72.dp, height = 44.dp)) {
+            Box(Modifier.size(width = 72.dp, height = 44.dp), contentAlignment = Alignment.Center) { FileTypeIcon(d.fileName, d.mimeType) }
+        }
+    } else {
+        FileTypeIcon(d.fileName, d.mimeType)
+    }
+}
+
+@Composable
+fun RowActions(d: DownloadEntity, vm: MainViewModel, onDelete: () -> Unit, onDetails: (() -> Unit)? = null) {
     val context = LocalContext.current
     var menu by remember { mutableStateOf(false) }
 
@@ -380,11 +407,27 @@ fun RowActions(d: DownloadEntity, vm: MainViewModel, onDelete: () -> Unit) {
         DownloadStatus.FAILED, DownloadStatus.CANCELLED ->
             IconButton(onClick = { vm.retry(d.id) }) { Icon(Icons.Filled.Refresh, "Retry") }
         DownloadStatus.COMPLETED ->
-            IconButton(onClick = { FileActions.open(context, vm.container, d) }) { Icon(Icons.AutoMirrored.Filled.OpenInNew, "Open") }
+            IconButton(onClick = { vm.open(context, d) }) { Icon(Icons.AutoMirrored.Filled.OpenInNew, "Open") }
     }
     Box {
         IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, "More") }
         DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+            if (d.status != DownloadStatus.COMPLETED && PlayerLauncher.isMedia(d)) {
+                if (d.isYoutube) {
+                    DropdownMenuItem(
+                        text = { Text("Preview isn't available for YouTube") },
+                        leadingIcon = { Icon(Icons.Filled.PlayCircle, null) },
+                        enabled = false,
+                        onClick = {},
+                    )
+                } else {
+                    DropdownMenuItem(
+                        text = { Text("Preview") },
+                        leadingIcon = { Icon(Icons.Filled.PlayCircle, null) },
+                        onClick = { menu = false; vm.preview(context, d) },
+                    )
+                }
+            }
             when (d.status) {
                 DownloadStatus.RUNNING, DownloadStatus.QUEUED, DownloadStatus.PAUSED ->
                     DropdownMenuItem(
@@ -396,15 +439,32 @@ fun RowActions(d: DownloadEntity, vm: MainViewModel, onDelete: () -> Unit) {
                     DropdownMenuItem(
                         text = { Text("Open") },
                         leadingIcon = { Icon(Icons.AutoMirrored.Filled.OpenInNew, null) },
-                        onClick = { menu = false; FileActions.open(context, vm.container, d) },
+                        onClick = { menu = false; vm.open(context, d) },
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Open with…") },
+                        leadingIcon = { Icon(Icons.Filled.Apps, null) },
+                        onClick = { menu = false; FileActions.openWith(context, vm.container, d) },
                     )
                     DropdownMenuItem(
                         text = { Text("Share file") },
                         leadingIcon = { Icon(Icons.Filled.Share, null) },
                         onClick = { menu = false; FileActions.share(context, vm.container, d) },
                     )
+                    DropdownMenuItem(
+                        text = { Text("Move to private folder") },
+                        leadingIcon = { Icon(Icons.Filled.Lock, null) },
+                        onClick = { menu = false; vm.moveToPrivate(d) },
+                    )
                 }
                 else -> Unit
+            }
+            onDetails?.let { open ->
+                DropdownMenuItem(
+                    text = { Text("Details") },
+                    leadingIcon = { Icon(Icons.Filled.Info, null) },
+                    onClick = { menu = false; open() },
+                )
             }
             DropdownMenuItem(
                 text = { Text("Copy link") },

@@ -15,7 +15,11 @@ import com.olaph.xdm.core.DeleteProgress
 import com.olaph.xdm.core.DeleteReport
 import com.olaph.xdm.core.DeleteTarget
 import com.olaph.xdm.core.LiveProgress
+import com.olaph.xdm.core.MoveResult
 import com.olaph.xdm.core.PendingDownload
+import com.olaph.xdm.data.AutoLockDelay
+import com.olaph.xdm.data.MediaOpener
+import com.olaph.xdm.player.PlayerLauncher
 import com.olaph.xdm.crash.TestReportResult
 import com.olaph.xdm.engine.SearchEngine
 import com.olaph.xdm.data.AppSettings
@@ -68,10 +72,18 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     val container: AppContainer = (app as XdmApp).container
     private val manager = container.manager
 
+    /** The public list. Private items (finished or not) only ever show inside the private folder's screen. */
     val items: StateFlow<List<DownloadItem>?> =
         combine(container.dao.observeAll(), manager.live) { list, live ->
-            list.map { DownloadItem(it, live[it.id]) }
+            list.filter { !it.isPrivate }.map { DownloadItem(it, live[it.id]) }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    /** False until a PIN exists: nothing can be made private before the folder can be locked. */
+    val vaultReady: StateFlow<Boolean> =
+        container.vaultLock.pinSet.stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    /** Set by the "private download finished" notification; the root screen switches to the private folder. */
+    val openPrivateRequest = MutableStateFlow(false)
 
     val settings: StateFlow<AppSettings> =
         container.settings.flow.stateIn(viewModelScope, SharingStarted.Eagerly, AppSettings())
@@ -193,6 +205,13 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Result of the system's delete dialog; [ok] = the user allowed it. */
     fun onSystemDeleteResult(ok: Boolean) {
+        awaitingMoveCleanup?.let { publicPath ->
+            awaitingMoveCleanup = null
+            viewModelScope.launch {
+                _events.send(Event.Message(if (ok) "Moved to the private folder" else publicCopyLeft(publicPath)))
+            }
+            return
+        }
         val targets = awaiting
         val first = carried
         awaiting = emptyList()
@@ -211,6 +230,61 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     private suspend fun finishDelete(report: DeleteReport, extraFailed: Int) {
         _events.send(Event.Message(DeleteScope.message(report.removed, report.freedBytes, report.failed + extraFailed)))
     }
+
+    // ---- private folder ----
+
+    /** Where the public copy is that the system still has to delete after a move into the private folder. */
+    private var awaitingMoveCleanup: String? = null
+
+    private fun publicCopyLeft(publicPath: String) =
+        "Moved to the private folder, but the public copy ($publicPath) could not be deleted. Delete it yourself."
+
+    /** "Move to private folder" on a finished public download. Runs in the app scope like the deletes. */
+    fun moveToPrivate(d: DownloadEntity) {
+        val publicPath = d.savedPath ?: "Download/XDM"
+        container.scope.launch {
+            if (!container.vaultLock.hasPin()) {
+                _events.send(Event.Message("Set up the private folder first: tap the lock icon at the top."))
+                return@launch
+            }
+            when (val r = manager.moveToPrivate(d.id)) {
+                is MoveResult.Moved -> {
+                    Thumbnails.forget(getApplication(), listOf(d.id))
+                    _events.send(Event.Message("Moved to the private folder"))
+                }
+                is MoveResult.PublicCopyLeft -> {
+                    Thumbnails.forget(getApplication(), listOf(d.id))
+                    val request = if (r.askSystem) container.fileSaver.deleteRequest(listOf(r.target.location)) else null
+                    if (request != null) {
+                        awaitingMoveCleanup = publicPath
+                        _events.send(Event.SystemDelete(request))
+                    } else {
+                        _events.send(Event.Message(publicCopyLeft(publicPath)))
+                    }
+                }
+                is MoveResult.Failed -> _events.send(Event.Message("Could not move to the private folder (${r.reason}). Nothing was changed."))
+            }
+        }
+    }
+
+    /** Tapping a finished download: media in the built-in player (unless Settings says otherwise), the rest externally. */
+    fun open(context: Context, d: DownloadEntity) {
+        if (settings.value.openMediaWith == MediaOpener.BUILT_IN && PlayerLauncher.isMedia(d)) {
+            if (d.savedLocation == null || !container.fileSaver.exists(d.savedLocation)) {
+                viewModelScope.launch { _events.send(Event.Message("File not found (moved or deleted)")) }
+                return
+            }
+            PlayerLauncher.play(context, items.value.orEmpty().map { it.entity }, d.id)
+        } else {
+            FileActions.open(context, container, d)
+        }
+    }
+
+    fun preview(context: Context, d: DownloadEntity) = PlayerLauncher.preview(context, d)
+
+    fun setOpenMediaWith(v: MediaOpener) = viewModelScope.launch { container.settings.setOpenMediaWith(v) }
+    fun setSavePrivateByDefault(v: Boolean) = viewModelScope.launch { container.settings.setSavePrivateByDefault(v) }
+    fun setAutoLockDelay(v: AutoLockDelay) = viewModelScope.launch { container.settings.setAutoLockDelay(v) }
 
     fun setConnections(v: Int) = viewModelScope.launch { container.settings.setConnections(v) }
     fun setMaxParallel(v: Int) = viewModelScope.launch { container.settings.setMaxParallel(v) }

@@ -2,6 +2,7 @@ package com.olaph.xdm.ui
 
 import android.content.ClipboardManager
 import android.content.Context
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -17,6 +18,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -72,6 +74,9 @@ fun AddDownloadSheet(
     container: AppContainer,
     prefill: PendingDownload?,
     defaultConnections: Int,
+    /** A PIN exists, so the private folder can take downloads. */
+    privateAvailable: Boolean,
+    defaultPrivate: Boolean,
     onDismiss: () -> Unit,
     onAdded: () -> Unit,
     /** A pasted or typed YouTube link is handed over instead of being probed as a file. */
@@ -90,6 +95,7 @@ fun AddDownloadSheet(
     var connections by rememberSaveable { mutableIntStateOf(defaultConnections) }
     var probe by remember { mutableStateOf<ProbeState>(ProbeState.Idle) }
     var adding by remember { mutableStateOf(false) }
+    var savePrivate by rememberSaveable { mutableStateOf(prefill?.isPrivate ?: defaultPrivate) }
 
     val trimmed = url.trim()
     val validUrl = UrlUtils.isHttpUrl(trimmed)
@@ -132,6 +138,7 @@ fun AddDownloadSheet(
             container.manager.add(
                 trimmed, name, connections, startNow, result, headers,
                 kind = if (hls) DownloadKind.HLS else DownloadKind.HTTP,
+                isPrivate = savePrivate && privateAvailable,
             )
             onAdded()
         }
@@ -244,6 +251,8 @@ fun AddDownloadSheet(
                 )
             }
 
+            PrivateCheckbox(checked = savePrivate && privateAvailable, available = privateAvailable, onChange = { savePrivate = it })
+
             Spacer(Modifier.height(4.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedButton(
@@ -257,6 +266,26 @@ fun AddDownloadSheet(
                     modifier = Modifier.weight(1f),
                 ) { Text("Start now") }
             }
+        }
+    }
+}
+
+/** "Save to private folder", shared by the add, browser video and YouTube sheets. */
+@Composable
+fun PrivateCheckbox(checked: Boolean, available: Boolean, onChange: (Boolean) -> Unit, modifier: Modifier = Modifier) {
+    Row(
+        modifier.fillMaxWidth().clickable(enabled = available) { onChange(!checked) },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Checkbox(checked = checked, onCheckedChange = onChange, enabled = available)
+        Column {
+            Text("Save to private folder", style = MaterialTheme.typography.bodyMedium)
+            Text(
+                if (available) "Hidden from the gallery and other apps, behind your PIN"
+                else "Set up the private folder first (lock icon in Downloads)",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }

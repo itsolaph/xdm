@@ -11,4 +11,8 @@
         <item name="android:windowNoTitle">true</item>
         <item name="android:backgroundDimEnabled">false</item>
     </style>
+
+    <style name="Theme.XDM.Player" parent="Theme.XDM">
+        <item name="android:windowBackground">@android:color/black</item>
+    </style>
 </resources>

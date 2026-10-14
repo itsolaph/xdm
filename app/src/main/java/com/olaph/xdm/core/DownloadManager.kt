@@ -27,6 +27,7 @@ import com.olaph.xdm.remux.Remuxer
 import com.olaph.xdm.remux.DashMuxer
 import com.olaph.xdm.remux.Mp4DashMuxer
 import com.olaph.xdm.remux.TsMp4Remuxer
+import com.olaph.xdm.vault.VaultStore
 import com.olaph.xdm.youtube.FormatSelector
 import com.olaph.xdm.youtube.YoutubeResolver
 import com.olaph.xdm.youtube.YoutubeUrls
@@ -68,6 +69,20 @@ data class DeleteTarget(val id: Long, val location: String, val bytes: Long)
 data class DeleteReport(val removed: Int, val freedBytes: Long, val failed: Int, val needsPermission: List<DeleteTarget>)
 
 data class DeleteProgress(val done: Int, val total: Int)
+
+/** Outcome of moving a finished file into or out of the private folder. */
+sealed interface MoveResult {
+    data class Moved(val fileName: String) : MoveResult
+
+    /**
+     * The file is in the private folder and the record points there, but the public copy is still in Download/XDM:
+     * [askSystem] = the app may not delete it and needs the system's confirmation, otherwise deleting it failed.
+     */
+    data class PublicCopyLeft(val target: DeleteTarget, val askSystem: Boolean) : MoveResult
+
+    /** Nothing changed (apart from a removed partial copy). */
+    data class Failed(val reason: String) : MoveResult
+}
 
 /** Live (non-persisted) numbers for a running download. */
 data class LiveProgress(
@@ -117,6 +132,8 @@ class DownloadManager(
      * (after a reboot, say) at a moment when it may not run a foreground service, and downloads must not run without one.
      */
     holdQueue: Boolean = false,
+    /** The private folder: where private downloads end up instead of [fileSaver]. Null = private downloads fail. */
+    private val privateStore: VaultStore? = null,
 ) {
     private enum class StopReason { PAUSE, CANCEL, DELETE, NETWORK, REQUEUE }
 
@@ -206,6 +223,7 @@ class DownloadManager(
         probe: ProbeResult? = null,
         headers: Map<String, String> = emptyMap(),
         kind: String = DownloadKind.HTTP,
+        isPrivate: Boolean = false,
     ): Long {
         val name = FilenameUtils.sanitize(fileName.ifBlank { FilenameUtils.resolve(null, url, probe?.mimeType) })
         val id = pumpMutex.withLock {
@@ -223,6 +241,7 @@ class DownloadManager(
                     forceStart = startNow,
                     headers = HeaderCodec.encode(headers),
                     kind = kind,
+                    isPrivate = isPrivate,
                 ),
             )
             pumpLocked()
@@ -236,7 +255,7 @@ class DownloadManager(
      * streams are looked up again when the download starts, so nothing here depends on an URL that could expire.
      * [title] and [quality] only name the item until then.
      */
-    suspend fun addYoutube(plan: YtPlan, title: String, startNow: Boolean, connections: Int): Long {
+    suspend fun addYoutube(plan: YtPlan, title: String, startNow: Boolean, connections: Int, isPrivate: Boolean = false): Long {
         val ext = if (plan.mode == YtPlan.Mode.AUDIO) "m4a" else "mp4"
         val label = plan.label.ifEmpty { plan.quality?.takeIf { it.height > 0 }?.let { "${it.height}p" }.orEmpty() }
         val name = FormatSelector.fileName(title, label, ext)
@@ -253,6 +272,7 @@ class DownloadManager(
                     forceStart = startNow,
                     kind = DownloadKind.YOUTUBE,
                     extra = plan.encode(),
+                    isPrivate = isPrivate,
                 ),
             )
             pumpLocked()
@@ -313,8 +333,11 @@ class DownloadManager(
      * go; with [deleteFiles] the saved files of completed ones too. A record is removed once its file is gone
      * (or was already missing). Files the app may not delete ([DeleteStatus.DENIED]) keep their record and come
      * back in [DeleteReport.needsPermission] for the system's delete request, then [removeRecords].
+     *
+     * Only items on the side named by [privateItems] are touched: the public list's "delete all" can never reach into
+     * the private folder, and the private folder's own delete never touches public files.
      */
-    suspend fun deleteMany(ids: Collection<Long>, deleteFiles: Boolean): DeleteReport {
+    suspend fun deleteMany(ids: Collection<Long>, deleteFiles: Boolean, privateItems: Boolean = false): DeleteReport {
         val wanted = ids.distinct()
         _deleteProgress.value = DeleteProgress(0, wanted.size)
         var removed = 0
@@ -328,7 +351,7 @@ class DownloadManager(
             pumpMutex.withLock {
                 for (id in wanted) {
                     val d = dao.get(id)
-                    if (d == null) { done++; continue }
+                    if (d == null || d.isPrivate != privateItems) { done++; continue }
                     jobs[id]?.let {
                         stop(id, StopReason.DELETE)
                         it.join() // the job's cleanup does not need the scheduler lock
@@ -343,7 +366,12 @@ class DownloadManager(
             }
             for (d in completed) {
                 val location = d.savedLocation
-                val status = if (deleteFiles && location != null) withContext(Dispatchers.IO) { fileSaver.delete(location) } else DeleteStatus.MISSING
+                val store = if (d.isPrivate) privateStore else fileSaver
+                val status = when {
+                    !deleteFiles || location == null -> DeleteStatus.MISSING
+                    store == null -> DeleteStatus.FAILED
+                    else -> withContext(Dispatchers.IO) { store.delete(location) }
+                }
                 val size = d.totalBytes.coerceAtLeast(0)
                 when (status) {
                     DeleteStatus.DELETED -> { freed += size; removed++; removeRecord(d.id) }
@@ -368,6 +396,66 @@ class DownloadManager(
     private suspend fun removeRecord(id: Long) {
         dao.delete(id)
         withContext(Dispatchers.IO) { deleteTemp(id) }
+    }
+
+    // ---- private folder ----
+
+    /**
+     * Copies a finished public file into the private folder, checks the size, points the record there and then deletes
+     * the public copy. If the copy fails, the partial copy goes and nothing else changes; if only the delete fails, both
+     * copies stay and [MoveResult.PublicCopyLeft] says so.
+     */
+    suspend fun moveToPrivate(id: Long): MoveResult = withContext(Dispatchers.IO) {
+        val vault = privateStore ?: return@withContext MoveResult.Failed("The private folder is not available")
+        val d = dao.get(id) ?: return@withContext MoveResult.Failed("The download is gone")
+        val location = d.savedLocation
+        if (d.isPrivate || d.status != DownloadStatus.COMPLETED || location == null) {
+            return@withContext MoveResult.Failed("Only finished downloads can be moved")
+        }
+        val saved = try {
+            fileSaver.open(location).use { vault.importStream(it, d.fileName, d.totalBytes.takeIf { n -> n > 0 } ?: -1) }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            return@withContext MoveResult.Failed(describe(e))
+        }
+        // The record follows the private copy before the public one is touched: whatever happens next, it points at a file.
+        dao.setSavedFile(id, saved.location, saved.displayPath, saved.fileName, isPrivate = true)
+        val target = DeleteTarget(id, location, d.totalBytes.coerceAtLeast(0))
+        when (fileSaver.delete(location)) {
+            DeleteStatus.DELETED, DeleteStatus.MISSING -> MoveResult.Moved(saved.fileName)
+            DeleteStatus.DENIED -> MoveResult.PublicCopyLeft(target, askSystem = true)
+            DeleteStatus.FAILED -> MoveResult.PublicCopyLeft(target, askSystem = false)
+        }
+    }
+
+    /** "Move out": the file goes back to Download/XDM through the normal saver, then leaves the private folder. */
+    suspend fun moveOutOfPrivate(id: Long): MoveResult = withContext(Dispatchers.IO) {
+        val vault = privateStore ?: return@withContext MoveResult.Failed("The private folder is not available")
+        val d = dao.get(id) ?: return@withContext MoveResult.Failed("The download is gone")
+        val file = d.savedLocation?.let { vault.file(it) }
+        if (!d.isPrivate || d.status != DownloadStatus.COMPLETED || file == null || !file.isFile) {
+            return@withContext MoveResult.Failed("File not found")
+        }
+        val saved = try {
+            fileSaver.save(file, d.fileName, d.mimeType)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            return@withContext MoveResult.Failed(describe(e))
+        }
+        dao.setSavedFile(id, saved.location, saved.displayPath, saved.fileName, isPrivate = false)
+        vault.delete(file.absolutePath) // already gone if the saver could simply rename it
+        MoveResult.Moved(saved.fileName)
+    }
+
+    /** Renames a finished private file; returns the name it got, or null. */
+    suspend fun renamePrivate(id: Long, newName: String): String? = withContext(Dispatchers.IO) {
+        val vault = privateStore ?: return@withContext null
+        val d = dao.get(id)?.takeIf { it.isPrivate && it.status == DownloadStatus.COMPLETED } ?: return@withContext null
+        val saved = d.savedLocation?.let { vault.rename(it, newName) } ?: return@withContext null
+        dao.setSavedFile(id, saved.location, saved.displayPath, saved.fileName, isPrivate = true)
+        saved.fileName
     }
 
     fun pauseAll() = act {
@@ -454,7 +542,13 @@ class DownloadManager(
 
             // Moving a large file into MediaStore takes a while; show it as 100% / no speed meanwhile.
             _live.update { it + (id to LiveProgress(result.totalBytes, result.totalBytes, 0, 0, result.segments, result.segments)) }
-            val target = withContext(Dispatchers.IO) { fileSaver.save(result.file, result.fileName, result.mimeType) }
+            // A private download never touches MediaStore: the finished file moves straight into the private folder.
+            val destination: FileStore = if (d.isPrivate) {
+                privateStore ?: throw FatalDownloadException("The private folder is not available")
+            } else {
+                fileSaver
+            }
+            val target = withContext(Dispatchers.IO) { destination.save(result.file, result.fileName, result.mimeType) }
             dao.markCompleted(id, clock(), target.location, target.displayPath, target.fileName, result.totalBytes, result.note)
             dao.deleteSegments(id)
             withContext(Dispatchers.IO) { deleteTemp(id) }

@@ -12,6 +12,7 @@ import com.olaph.xdm.engine.FilenameUtils
 import com.olaph.xdm.engine.MimeTypes
 import java.io.File
 import java.io.IOException
+import java.io.InputStream
 
 data class Saved(val location: String, val displayPath: String, val fileName: String)
 
@@ -21,6 +22,8 @@ interface FileStore {
     fun save(temp: File, desiredName: String, mimeType: String?): Saved
     /** Blocking; call from an IO dispatcher. Never throws. */
     fun delete(location: String): DeleteStatus
+    /** Blocking; reads a saved file. Throws if it is gone or unreadable. */
+    fun open(location: String): InputStream
 }
 
 enum class DeleteStatus {
@@ -104,6 +107,13 @@ class FileSaver(private val context: Context) : FileStore {
                 ?.use { it.moveToFirst() } ?: false
         } else File(location).exists()
     }.getOrDefault(false)
+
+    override fun open(location: String): InputStream =
+        if (location.startsWith("content://")) {
+            context.contentResolver.openInputStream(Uri.parse(location)) ?: throw IOException("Cannot read the file")
+        } else {
+            File(location).inputStream()
+        }
 
     override fun delete(location: String): DeleteStatus = try {
         if (location.startsWith("content://")) {

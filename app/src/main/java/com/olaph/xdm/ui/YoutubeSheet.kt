@@ -86,6 +86,8 @@ fun YoutubeSheet(
     link: YoutubeLink,
     defaultQuality: YoutubeQuality,
     connections: Int,
+    privateAvailable: Boolean,
+    defaultPrivate: Boolean,
     onDismiss: () -> Unit,
     onDone: (String) -> Unit,
 ) {
@@ -96,9 +98,11 @@ fun YoutubeSheet(
     var rememberChoice by remember(link) { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     var playlistQuality by remember { mutableStateOf(defaultQuality.takeIf { it != YoutubeQuality.ASK } ?: YoutubeQuality.P720) }
+    var savePrivate by remember { mutableStateOf(defaultPrivate) }
+    val toPrivate = savePrivate && privateAvailable
 
     suspend fun addOption(info: YtInfo, option: YtOption, options: List<YtOption>, rememberIt: Boolean) {
-        container.manager.addYoutube(YtPlan.forOption(info.videoId, option), info.title, startNow = false, connections = connections)
+        container.manager.addYoutube(YtPlan.forOption(info.videoId, option), info.title, startNow = false, connections = connections, isPrivate = toPrivate)
         if (rememberIt) FormatSelector.qualityFor(option, options)?.let { container.settings.setYoutubeQuality(it) }
         onDone("Added: " + FormatSelector.fileName(info.title, option))
     }
@@ -170,6 +174,7 @@ fun YoutubeSheet(
                     defaultQuality = defaultQuality,
                     remember = rememberChoice,
                     onRemember = { rememberChoice = it },
+                    privateCheckbox = { PrivateCheckbox(toPrivate, privateAvailable, { savePrivate = it }, Modifier.padding(horizontal = 12.dp)) },
                     busy = busy,
                     onPlaylist = { target = YoutubeLink.Playlist(it) },
                     onPick = { option ->
@@ -183,13 +188,17 @@ fun YoutubeSheet(
                     list = s.list,
                     quality = playlistQuality,
                     onQuality = { playlistQuality = it },
+                    privateCheckbox = { PrivateCheckbox(toPrivate, privateAvailable, { savePrivate = it }, Modifier.padding(horizontal = 12.dp)) },
                     busy = busy,
                     onDownloadAll = {
                         if (!busy) {
                             busy = true
                             scope.launch {
                                 for (item in s.list.items) {
-                                    container.manager.addYoutube(YtPlan.deferred(item.videoId, playlistQuality), item.title, startNow = false, connections = connections)
+                                    container.manager.addYoutube(
+                                        YtPlan.deferred(item.videoId, playlistQuality), item.title, startNow = false,
+                                        connections = connections, isPrivate = toPrivate,
+                                    )
                                 }
                                 onDone("Added ${s.list.items.size} videos from the playlist")
                             }
@@ -210,6 +219,7 @@ private fun VideoChoices(
     defaultQuality: YoutubeQuality,
     remember: Boolean,
     onRemember: (Boolean) -> Unit,
+    privateCheckbox: @Composable () -> Unit,
     busy: Boolean,
     onPlaylist: (String) -> Unit,
     onPick: (YtOption) -> Unit,
@@ -229,6 +239,8 @@ private fun VideoChoices(
         }
     }
     Spacer(Modifier.height(8.dp))
+    // Above the formats: picking a format adds the download right away.
+    privateCheckbox()
 
     val video = options.filter { it.kind == OptionKind.VIDEO }
     val progressive = options.filter { it.kind == OptionKind.PROGRESSIVE }
@@ -273,6 +285,7 @@ private fun PlaylistChoices(
     list: YtPlaylist,
     quality: YoutubeQuality,
     onQuality: (YoutubeQuality) -> Unit,
+    privateCheckbox: @Composable () -> Unit,
     busy: Boolean,
     onDownloadAll: () -> Unit,
 ) {
@@ -314,6 +327,7 @@ private fun PlaylistChoices(
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
     )
+    privateCheckbox()
     Button(
         onClick = onDownloadAll,
         enabled = !busy && list.items.isNotEmpty(),

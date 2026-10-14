@@ -37,4 +37,12 @@ val MIGRATION_3_4: Migration = object : Migration(3, 4) {
     }
 }
 
-val ALL_MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+/** v4 → v5: the private-folder flag and the player's resume position. Existing rows are public and start at 0. */
+val MIGRATION_4_5: Migration = object : Migration(4, 5) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `downloads` ADD COLUMN `isPrivate` INTEGER NOT NULL DEFAULT 0")
+        db.execSQL("ALTER TABLE `downloads` ADD COLUMN `playbackPositionMs` INTEGER NOT NULL DEFAULT 0")
+    }
+}
+
+val ALL_MIGRATIONS: Array<Migration> = arrayOf(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5)
