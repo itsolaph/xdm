@@ -19,9 +19,6 @@ import kotlinx.coroutines.flow.map
 
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
 
-/** What tapping a finished video or audio file does. */
-enum class MediaOpener(val label: String) { BUILT_IN("Built-in player"), OTHER_APP("Other app") }
-
 /** How long the private folder stays unlocked after XDM goes to the background. */
 enum class AutoLockDelay(val label: String, val millis: Long) {
     IMMEDIATELY("Immediately", 0),
@@ -52,7 +49,6 @@ data class AppSettings(
     val youtubeQuality: YoutubeQuality = YoutubeQuality.ASK,
     /** Put interrupted downloads back to work after a reboot or an app update. */
     val resumeAfterRestart: Boolean = true,
-    val openMediaWith: MediaOpener = MediaOpener.BUILT_IN,
     /** Default of the "Save to private folder" box in the add sheets. */
     val savePrivateByDefault: Boolean = false,
     val autoLockDelay: AutoLockDelay = AutoLockDelay.IMMEDIATELY,
@@ -89,7 +85,6 @@ class SettingsRepository(private val context: Context) : SettingsSource {
         val convertHlsToMp4 = booleanPreferencesKey("convert_hls_to_mp4")
         val youtubeQuality = stringPreferencesKey("youtube_quality")
         val resumeAfterRestart = booleanPreferencesKey("resume_after_restart")
-        val openMediaWith = stringPreferencesKey("open_media_with")
         val savePrivateByDefault = booleanPreferencesKey("save_private_by_default")
         val autoLockDelay = stringPreferencesKey("auto_lock_delay")
     }
@@ -111,7 +106,6 @@ class SettingsRepository(private val context: Context) : SettingsSource {
             convertHlsToMp4 = p[Keys.convertHlsToMp4] ?: d.convertHlsToMp4,
             youtubeQuality = p[Keys.youtubeQuality]?.let { runCatching { YoutubeQuality.valueOf(it) }.getOrNull() } ?: d.youtubeQuality,
             resumeAfterRestart = p[Keys.resumeAfterRestart] ?: d.resumeAfterRestart,
-            openMediaWith = p[Keys.openMediaWith]?.let { runCatching { MediaOpener.valueOf(it) }.getOrNull() } ?: d.openMediaWith,
             savePrivateByDefault = p[Keys.savePrivateByDefault] ?: d.savePrivateByDefault,
             autoLockDelay = p[Keys.autoLockDelay]?.let { runCatching { AutoLockDelay.valueOf(it) }.getOrNull() } ?: d.autoLockDelay,
         )
@@ -131,7 +125,6 @@ class SettingsRepository(private val context: Context) : SettingsSource {
     suspend fun setPopupMode(v: PopupMode) = context.dataStore.edit { it[Keys.popupMode] = v.name }
     suspend fun setYoutubeQuality(v: YoutubeQuality) = context.dataStore.edit { it[Keys.youtubeQuality] = v.name }
     suspend fun setResumeAfterRestart(v: Boolean) = context.dataStore.edit { it[Keys.resumeAfterRestart] = v }
-    suspend fun setOpenMediaWith(v: MediaOpener) = context.dataStore.edit { it[Keys.openMediaWith] = v.name }
     suspend fun setSavePrivateByDefault(v: Boolean) = context.dataStore.edit { it[Keys.savePrivateByDefault] = v }
     suspend fun setAutoLockDelay(v: AutoLockDelay) = context.dataStore.edit { it[Keys.autoLockDelay] = v.name }
 

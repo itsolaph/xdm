@@ -107,7 +107,6 @@ class DownloadManagerTest {
         override suspend fun setSavedFile(id: Long, location: String, path: String, name: String, isPrivate: Boolean) {
             mutate(id) { it.copy(savedLocation = location, savedPath = path, fileName = name, isPrivate = isPrivate) }
         }
-        override suspend fun setPlaybackPosition(id: Long, positionMs: Long) { mutate(id) { it.copy(playbackPositionMs = positionMs) } }
         override suspend fun privateIds(): List<Long> = rows.value.filter { it.isPrivate }.map { it.id }
         override suspend fun getSegments(id: Long) = segs.value[id].orEmpty().sortedBy { it.idx }
         override fun observeSegments(id: Long): Flow<List<SegmentEntity>> = segs.map { it[id].orEmpty() }

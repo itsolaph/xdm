@@ -13,7 +13,7 @@
             android:excludeFromRecents="true"
             android:label="YouTube self-test" />
         <!--
-            Debug builds only: private folder + player self-test, started from the shell with
+            Debug builds only: private folder self-test, started from the shell with
             am start -n com.olaph.xdm/.debug.VaultTestActivity; it logs one VAULTTEST line. Exported for the same reason.
         -->
         <activity

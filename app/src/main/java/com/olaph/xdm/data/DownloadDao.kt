@@ -77,9 +77,6 @@ abstract class DownloadDao {
     @Query("UPDATE downloads SET savedLocation = :location, savedPath = :path, fileName = :name, isPrivate = :isPrivate WHERE id = :id")
     abstract suspend fun setSavedFile(id: Long, location: String, path: String, name: String, isPrivate: Boolean)
 
-    @Query("UPDATE downloads SET playbackPositionMs = :positionMs WHERE id = :id")
-    abstract suspend fun setPlaybackPosition(id: Long, positionMs: Long)
-
     @Query("SELECT id FROM downloads WHERE isPrivate = 1")
     abstract suspend fun privateIds(): List<Long>
 

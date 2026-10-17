@@ -110,7 +110,7 @@ case "$yt_line" in
   *) note "YTTEST FAIL no result within 180 s"; fail=1 ;;
 esac
 
-# Private folder + player self-test (debug-only VaultTestActivity, no network): logs one line, which goes into result.txt.
+# Private folder self-test (debug-only VaultTestActivity, no network): logs one line, which goes into result.txt.
 #   VAULTTEST PASS <details>   VAULTTEST FAIL <reason>   (or no line within 90 s = FAIL)
 adb shell am start -n "$PKG/.debug.VaultTestActivity" >/dev/null 2>&1
 vt_line=""

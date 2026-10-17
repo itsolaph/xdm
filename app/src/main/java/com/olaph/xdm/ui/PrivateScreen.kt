@@ -40,7 +40,6 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Password
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.Share
@@ -89,8 +88,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.olaph.xdm.core.Formatters
 import com.olaph.xdm.data.DownloadEntity
 import com.olaph.xdm.data.DownloadStatus
-import com.olaph.xdm.player.PlayerGestures
-import com.olaph.xdm.player.PlayerLauncher
+import com.olaph.xdm.media.MediaFiles
 import com.olaph.xdm.vault.PinAttemptPolicy
 import com.olaph.xdm.vault.PinHasher
 import com.olaph.xdm.vault.UnlockResult
@@ -353,8 +351,7 @@ private fun VaultContent(vm: PrivateViewModel, snackbar: SnackbarHostState, onBa
     BackHandler(enabled = selecting) { vm.clearSelection() }
 
     fun open(d: DownloadEntity) {
-        if (PlayerLauncher.isMedia(d)) PlayerLauncher.play(context, finished.map { it.entity }, d.id)
-        else pending = PendingAction.OpenElsewhere(d)
+        pending = PendingAction.OpenElsewhere(d)
     }
 
     Scaffold(
@@ -445,7 +442,7 @@ private fun VaultContent(vm: PrivateViewModel, snackbar: SnackbarHostState, onBa
                     onClick = { if (selecting) vm.toggleSelected(d.id) else open(d) },
                     onLongClick = { if (!selecting) vm.toggleSelected(d.id) },
                     onAction = { pending = it },
-                    onPlay = { open(d) },
+                    onOpen = { open(d) },
                 )
             }
         }
@@ -461,7 +458,7 @@ private fun VaultContent(vm: PrivateViewModel, snackbar: SnackbarHostState, onBa
         ) { pending = null; FileActions.share(context, vm.container, p.d) }
         is PendingAction.OpenElsewhere -> LeaveWarning(
             title = "Open in another app?",
-            text = "Only videos and audio play inside XDM. The other app can read this file and may keep a copy or a thumbnail.",
+            text = "The other app can read this file and may keep a copy or a thumbnail.",
             confirm = "Open",
             onDismiss = { pending = null },
         ) { pending = null; FileActions.openWith(context, vm.container, p.d) }
@@ -543,14 +540,6 @@ private fun ActiveRow(item: DownloadItem, vm: PrivateViewModel, selecting: Boole
                 Box {
                     IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, "More") }
                     DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                        if (PlayerLauncher.isMedia(d)) {
-                            DropdownMenuItem(
-                                text = { Text(if (d.isYoutube) "Preview isn't available for YouTube" else "Preview") },
-                                leadingIcon = { Icon(Icons.Filled.PlayCircle, null) },
-                                enabled = PlayerLauncher.canPreview(d),
-                                onClick = { menu = false; PlayerLauncher.preview(context, d) },
-                            )
-                        }
                         if (d.status != DownloadStatus.FAILED && d.status != DownloadStatus.CANCELLED) {
                             DropdownMenuItem(
                                 text = { Text("Cancel") },
@@ -579,10 +568,10 @@ private fun FileRow(
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     onAction: (PendingAction) -> Unit,
-    onPlay: () -> Unit,
+    onOpen: () -> Unit,
 ) {
     var menu by remember { mutableStateOf(false) }
-    val duration = if (PlayerLauncher.isMedia(d)) mediaDuration(d) else -1
+    val duration = if (MediaFiles.isMedia(d)) mediaDuration(d) else -1
     Card(
         Modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = onLongClick),
         colors = if (checked) CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer) else CardDefaults.cardColors(),
@@ -596,7 +585,7 @@ private fun FileRow(
             Column(Modifier.weight(1f)) {
                 Text(d.fileName, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Text(
-                    listOfNotNull(Formatters.bytes(d.totalBytes), duration.takeIf { it > 0 }?.let { PlayerGestures.formatTime(it) })
+                    listOfNotNull(Formatters.bytes(d.totalBytes), duration.takeIf { it > 0 }?.let { MediaFiles.formatTime(it) })
                         .joinToString(" · "),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -607,9 +596,9 @@ private fun FileRow(
                     IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, "More") }
                     DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                         DropdownMenuItem(
-                            text = { Text(if (PlayerLauncher.isMedia(d)) "Play" else "Open with…") },
-                            leadingIcon = { Icon(if (PlayerLauncher.isMedia(d)) Icons.Filled.PlayArrow else Icons.AutoMirrored.Filled.OpenInNew, null) },
-                            onClick = { menu = false; onPlay() },
+                            text = { Text("Open with…") },
+                            leadingIcon = { Icon(Icons.AutoMirrored.Filled.OpenInNew, null) },
+                            onClick = { menu = false; onOpen() },
                         )
                         DropdownMenuItem(
                             text = { Text("Move out") },

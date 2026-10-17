@@ -51,7 +51,7 @@ data class DownloadEntity(
     val extra: String? = null,
     /** Lives in the private folder (app-internal storage) instead of Download/XDM; only shown behind the lock. */
     @ColumnInfo(defaultValue = "0") val isPrivate: Boolean = false,
-    /** Where the built-in player stopped; 0 = start from the beginning. */
+    /** Unused since 0.7.1 (the removed built-in player stored its resume position here); kept so the schema stays at version 5. */
     @ColumnInfo(defaultValue = "0") val playbackPositionMs: Long = 0,
 ) {
     val isHls: Boolean get() = kind == DownloadKind.HLS

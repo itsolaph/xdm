@@ -110,19 +110,6 @@
             </intent-filter>
         </activity>
 
-        <!-- Built-in player. Its own task so picture-in-picture does not take the main screen with it;
-             no recreation on rotation or PiP resizes. -->
-        <activity
-            android:name=".player.PlayerActivity"
-            android:autoRemoveFromRecents="true"
-            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|uiMode"
-            android:exported="false"
-            android:launchMode="singleTask"
-            android:resizeableActivity="true"
-            android:supportsPictureInPicture="true"
-            android:taskAffinity="com.olaph.xdm.player"
-            android:theme="@style/Theme.XDM.Player" />
-
         <service
             android:name=".service.DownloadService"
             android:exported="false"

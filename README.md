@@ -26,15 +26,7 @@ XDM is for downloading files and videos you're **allowed** to download: your own
 - Finished files go to `Download/XDM/` (MediaStore on Android 10+), or into the private folder (below).
 - **Link capture**: share a URL to XDM, use "Open with" on download-type links (apk, zip, mp4, pdf, iso, …), or accept the offer for a URL on the clipboard.
 - Bulk delete per tab and a multi-select mode, optionally removing the files from storage too.
-
-### Built-in player
-- Finished videos and audio open in XDM's own player (based on `androidx.media3` ExoPlayer). Settings → "Open media with" switches to another app instead, and "Open with…" in an item's menu always offers other apps.
-- Fullscreen with the system bars hidden, keeps the screen on while playing, doesn't restart on rotation. Landscape videos turn the screen to landscape; a button locks the rotation.
-- Controls: play/pause, seek bar, speed (0.5x–2x), previous/next through the finished media in the list, audio and subtitle track choice when a file has several.
-- Gestures: double-tap left/right to jump 10 s back/forward, drag sideways to seek (the target time is shown), drag up/down on the left half for brightness (only XDM's window, the system setting is untouched) and on the right half for volume.
-- Remembers where you stopped, per download, and continues from there (when that is past the first 5 s and before the last 5 %). Finishing a video clears it.
-- Picture-in-picture when you leave the app while a video plays (Android 8+), with a play/pause button. Pauses for phone calls and other apps' audio, and when headphones are unplugged.
-- **Preview**: an unfinished HTTP or HLS download can be played straight from the original link, with the same Cookie / User-Agent / Referer / Origin the download uses. Not for YouTube items, whose links expire.
+- Tapping a finished file opens it with another app ("Open with…" in the item's menu always asks which). XDM has no media player of its own.
 - Finished videos show a thumbnail in the list (a frame picked once and cached as a small JPEG in the app's cache).
 
 ### Private folder
@@ -44,10 +36,10 @@ XDM is for downloading files and videos you're **allowed** to download: your own
 - **Forgotten PIN**: there is no recovery. "Reset private folder" (on the PIN screen) deletes every private file, private downloads still in progress, and the PIN, after you type `RESET`.
 - "Save to private folder" in the add sheet, the browser's video sheet and the YouTube sheet (default: Settings → "Save new downloads to private folder"). Private downloads run like any other; when they finish, the file moves into the private folder instead of `Download/XDM`.
 - Finished public downloads can be moved in ("Move to private folder" in the item's menu): the file is copied, the size is checked, then the public copy is deleted (through the system's confirmation dialog if XDM didn't create it). If the copy fails, nothing changes; if the public copy can't be deleted, both stay and XDM tells you.
-- Inside: thumbnails, size and duration; tap to play; Move out (back to `Download/XDM`), Rename, Share (with a warning that the copy leaves the folder), Delete, multi-select and "Delete all".
+- Inside: thumbnails, size and duration; tap to open with another app (after a warning); Move out (back to `Download/XDM`), Rename, Share (with a warning that the copy leaves the folder), Delete, multi-select and "Delete all".
 - Private items never appear in the main Downloads list, locked or not; they only show inside the private folder (unfinished ones too, with pause/resume/cancel). The main list's "Delete all" and multi-select can't reach them.
 - Notifications for private downloads say "Private download" without file name, error text or preview, are hidden on the lock screen, and open the private folder (which asks for the PIN), never the file.
-- Screenshots, screen recording and the recents thumbnail are blocked while the private folder or a private file in the player is on screen.
+- Screenshots, screen recording and the recents thumbnail are blocked while the private folder is on screen.
 
 **How private is it?** The files live in XDM's app-internal storage (`files/private/`). Android's app sandbox keeps other apps, file managers, the gallery and MediaStore out, and the device's file-based encryption protects them while the phone is locked. There is **no extra encryption by XDM**: anyone with root access to the phone (or a tool that copies app data with root) can read the files. The PIN only guards XDM's own screens. The folder and the PIN are excluded from cloud backups and device-to-device transfers. While a private download is still running, its partial data is in XDM's temporary folder (app-specific storage, not indexed by the gallery); it only moves into the private folder when it's finished. Thumbnails of private videos are kept in XDM's internal cache and deleted with the item or by a reset. Uninstalling XDM deletes the private folder.
 
@@ -117,7 +109,6 @@ Everything here is optional; the build works without it. Put the keys in `privat
 - `remux/`: MPEG-TS to MP4 and the DASH merger for YouTube.
 - `youtube/`: link parsing, format selection, error messages, the NewPipeExtractor bridge.
 - `core/`: `DownloadManager` (queue, pause/resume, Wi-Fi only, moves into and out of the private folder), storage, network monitor.
-- `player/`: the built-in player (`PlayerActivity`), its gesture math and resume rules.
 - `vault/`: the private folder's storage, PIN hashing, wrong-PIN cooldown and the lock state machine.
 - `data/`: Room and DataStore.
 - `service/`: foreground service and notifications.
@@ -126,7 +117,7 @@ Everything here is optional; the build works without it. Put the keys in `privat
 
 Room schemas are exported to `app/schemas/` and committed. `MigrationTest` runs every migration on a populated database and compares the result with the exported schema. There are no destructive migrations.
 
-CI runs the unit tests, a build and lint, then a smoke test on an emulator. That includes a real YouTube download of *Big Buck Bunny*, which may come back BLOCKED when YouTube rejects the runner's IP, and the private folder self-test: debug builds contain `VaultTestActivity` (`adb shell am start -n com.olaph.xdm/.debug.VaultTestActivity`), which puts a bundled 10 s test video into the private folder, checks MediaStore can't see it, plays it with ExoPlayer, stores and reads back a resume position, deletes it again and logs one `VAULTTEST PASS …` or `VAULTTEST FAIL …` line.
+CI runs the unit tests, a build and lint, then a smoke test on an emulator. That includes a real YouTube download of *Big Buck Bunny*, which may come back BLOCKED when YouTube rejects the runner's IP, and the private folder self-test: debug builds contain `VaultTestActivity` (`adb shell am start -n com.olaph.xdm/.debug.VaultTestActivity`), which puts a bundled 10 s test video into the private folder, checks MediaStore can't see it, reads its duration and decodes a frame with `MediaMetadataRetriever`, deletes it again and logs one `VAULTTEST PASS …` or `VAULTTEST FAIL …` line.
 
 ## Known limitations
 
@@ -136,8 +127,7 @@ CI runs the unit tests, a build and lint, then a smoke test on an emulator. That
 - **YouTube**: depends on NewPipeExtractor keeping up with YouTube. No account login, so age-restricted, members-only, paid and private videos can't be downloaded. Live streams, premieres and channels aren't supported. Video comes as H.264 up to 1080p, or AV1 above that; VP9/WebM isn't offered because media3's MP4 muxer rejects it. Audio is always AAC. No subtitles or chapters. Datacenter and VPN IPs often hit the bot check.
 - **Ad blocking**: scriptlets (`+js()`), procedural selectors, `$replace`, `csp`, `removeparam` and similar rules aren't supported and are skipped. Sites that need scriptlets, YouTube's video ads among them, still show ads. `redirect=` blocks instead of serving a stub. Request types are inferred because WebView doesn't report them. Lists use about 27 MB of heap, and the first compile after an install or update takes a few seconds.
 - Saved cookies aren't refreshed, so an expired session means re-adding the download from the browser.
-- **Player**: no background audio (leaving the app pauses audio files; videos go to picture-in-picture), no casting, no external subtitle files. Preview depends on the server accepting playback outside the page; some refuse it. Brightness and volume gestures start from the edges of the screen, where Android's back gesture may win.
-- **Private folder**: see "How private is it?" above. A move into the folder needs free space for a second copy for a moment. Opening a non-media private file or sharing one hands a copy to another app.
+- **Private folder**: see "How private is it?" above. A move into the folder needs free space for a second copy for a moment. Opening a private file in another app or sharing one lets that app read it (and possibly keep a copy).
 - Browser: `blob:`/`data:` downloads can't be captured, tabs aren't restored after the process is killed, location and camera are always denied.
 
 ## License
@@ -154,7 +144,7 @@ Libraries, all pulled unmodified from Maven Central / JitPack:
 | NewPipeExtractor dependencies: nanojson, jsoup, protobuf-javalite, Rhino | via NewPipeExtractor | nanojson's own license, MIT, BSD-3-Clause, MPL-2.0 |
 | OkHttp / Okio | https://github.com/square/okhttp | Apache-2.0 |
 | AndroidX: Jetpack Compose, Material 3, Room, DataStore, WebKit, Lifecycle (incl. lifecycle-process), Fragment, Biometric | https://developer.android.com/jetpack/androidx | Apache-2.0 |
-| AndroidX Media3 (extractor, muxer, ExoPlayer, ExoPlayer HLS, UI) | https://github.com/androidx/media | Apache-2.0 |
+| AndroidX Media3 (extractor, muxer) | https://github.com/androidx/media | Apache-2.0 |
 | Kotlin, kotlinx.coroutines | https://github.com/JetBrains/kotlin, https://github.com/Kotlin/kotlinx.coroutines | Apache-2.0 |
 | desugar_jdk_libs | https://github.com/google/desugar_jdk_libs | GPL-2.0 with Classpath Exception |
 

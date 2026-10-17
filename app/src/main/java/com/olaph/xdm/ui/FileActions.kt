@@ -46,7 +46,7 @@ object FileActions {
         }
     }
 
-    /** "Open with…": always asks which app, even for videos the built-in player would take. */
+    /** "Open with…": always asks which app, instead of using the default one. */
     fun openWith(context: Context, container: AppContainer, d: DownloadEntity) = open(context, container, d, chooser = true)
 
     fun share(context: Context, container: AppContainer, d: DownloadEntity) {

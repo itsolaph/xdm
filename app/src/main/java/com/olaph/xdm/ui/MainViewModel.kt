@@ -18,8 +18,6 @@ import com.olaph.xdm.core.LiveProgress
 import com.olaph.xdm.core.MoveResult
 import com.olaph.xdm.core.PendingDownload
 import com.olaph.xdm.data.AutoLockDelay
-import com.olaph.xdm.data.MediaOpener
-import com.olaph.xdm.player.PlayerLauncher
 import com.olaph.xdm.crash.TestReportResult
 import com.olaph.xdm.engine.SearchEngine
 import com.olaph.xdm.data.AppSettings
@@ -267,22 +265,9 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Tapping a finished download: media in the built-in player (unless Settings says otherwise), the rest externally. */
-    fun open(context: Context, d: DownloadEntity) {
-        if (settings.value.openMediaWith == MediaOpener.BUILT_IN && PlayerLauncher.isMedia(d)) {
-            if (d.savedLocation == null || !container.fileSaver.exists(d.savedLocation)) {
-                viewModelScope.launch { _events.send(Event.Message("File not found (moved or deleted)")) }
-                return
-            }
-            PlayerLauncher.play(context, items.value.orEmpty().map { it.entity }, d.id)
-        } else {
-            FileActions.open(context, container, d)
-        }
-    }
+    /** Tapping a finished download opens it with another app. */
+    fun open(context: Context, d: DownloadEntity) = FileActions.open(context, container, d)
 
-    fun preview(context: Context, d: DownloadEntity) = PlayerLauncher.preview(context, d)
-
-    fun setOpenMediaWith(v: MediaOpener) = viewModelScope.launch { container.settings.setOpenMediaWith(v) }
     fun setSavePrivateByDefault(v: Boolean) = viewModelScope.launch { container.settings.setSavePrivateByDefault(v) }
     fun setAutoLockDelay(v: AutoLockDelay) = viewModelScope.launch { container.settings.setAutoLockDelay(v) }
 

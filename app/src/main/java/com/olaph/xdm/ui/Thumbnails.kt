@@ -24,7 +24,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.olaph.xdm.data.DownloadEntity
 import com.olaph.xdm.data.DownloadStatus
-import com.olaph.xdm.player.PlayerLauncher
+import com.olaph.xdm.media.MediaFiles
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
@@ -50,7 +50,7 @@ object Thumbnails {
         (if (d.isPrivate) "p" else "") + "${d.id}-" + Integer.toHexString(d.savedLocation.orEmpty().hashCode())
 
     suspend fun load(context: Context, d: DownloadEntity): MediaInfo? {
-        if (d.status != DownloadStatus.COMPLETED || !PlayerLauncher.isMedia(d)) return null
+        if (d.status != DownloadStatus.COMPLETED || !MediaFiles.isMedia(d)) return null
         val location = d.savedLocation ?: return null
         val key = key(d)
         memory.get(key)?.let { return it }
@@ -62,7 +62,7 @@ object Thumbnails {
                 val info = if (meta.isFile) {
                     MediaInfo(if (jpg.isFile) BitmapFactory.decodeFile(jpg.path)?.asImageBitmap() else null, meta.readText().toLongOrNull() ?: -1)
                 } else {
-                    extract(context, location, PlayerLauncher.isVideo(d), jpg, meta)
+                    extract(context, location, MediaFiles.isVideo(d), jpg, meta)
                 }
                 info?.also { memory.put(key, it) }
             }

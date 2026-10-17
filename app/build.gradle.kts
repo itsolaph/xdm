@@ -54,8 +54,8 @@ android {
         applicationId = "com.olaph.xdm"
         minSdk = 26
         targetSdk = 35
-        versionCode = 10
-        versionName = "0.7.0"
+        versionCode = 11
+        versionName = "0.7.1"
 
         // Empty = crash reporting is not set up in this build.
         buildConfigField("String", "CRASH_RELAY_URL", (privateConfig("crashRelayUrl") ?: "").asBuildConfigString())
@@ -284,9 +284,6 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.androidx.media3.extractor)
     implementation(libs.androidx.media3.muxer)
-    implementation(libs.androidx.media3.exoplayer)
-    implementation(libs.androidx.media3.exoplayer.hls)
-    implementation(libs.androidx.media3.ui)
     implementation(libs.newpipe.extractor)
     coreLibraryDesugaring(libs.desugar.jdk.libs)
 

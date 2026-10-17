@@ -92,7 +92,7 @@ import com.olaph.xdm.data.DownloadEntity
 import com.olaph.xdm.data.DownloadStatus
 import com.olaph.xdm.engine.MimeTypes
 import com.olaph.xdm.engine.SegmentPlanner
-import com.olaph.xdm.player.PlayerLauncher
+import com.olaph.xdm.media.MediaFiles
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -220,8 +220,8 @@ fun ListScreen(vm: MainViewModel, onOpenDetail: (Long) -> Unit, onOpenSettings: 
                                 val d = item.entity
                                 when {
                                     selecting -> vm.toggleSelected(d.id)
-                                    // A finished video or audio file plays; everything else shows its details.
-                                    d.status == DownloadStatus.COMPLETED && PlayerLauncher.isMedia(d) -> vm.open(context, d)
+                                    // A finished file opens in another app; everything else shows its details.
+                                    d.status == DownloadStatus.COMPLETED -> vm.open(context, d)
                                     else -> onOpenDetail(d.id)
                                 }
                             },
@@ -385,7 +385,7 @@ private fun DownloadRow(
 /** A finished video gets its thumbnail, everything else the file type icon. */
 @Composable
 private fun DownloadIcon(d: DownloadEntity) {
-    if (d.status == DownloadStatus.COMPLETED && PlayerLauncher.isMedia(d)) {
+    if (d.status == DownloadStatus.COMPLETED && MediaFiles.isMedia(d)) {
         MediaThumbnail(d, Modifier.size(width = 72.dp, height = 44.dp)) {
             Box(Modifier.size(width = 72.dp, height = 44.dp), contentAlignment = Alignment.Center) { FileTypeIcon(d.fileName, d.mimeType) }
         }
@@ -412,22 +412,6 @@ fun RowActions(d: DownloadEntity, vm: MainViewModel, onDelete: () -> Unit, onDet
     Box {
         IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, "More") }
         DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-            if (d.status != DownloadStatus.COMPLETED && PlayerLauncher.isMedia(d)) {
-                if (d.isYoutube) {
-                    DropdownMenuItem(
-                        text = { Text("Preview isn't available for YouTube") },
-                        leadingIcon = { Icon(Icons.Filled.PlayCircle, null) },
-                        enabled = false,
-                        onClick = {},
-                    )
-                } else {
-                    DropdownMenuItem(
-                        text = { Text("Preview") },
-                        leadingIcon = { Icon(Icons.Filled.PlayCircle, null) },
-                        onClick = { menu = false; vm.preview(context, d) },
-                    )
-                }
-            }
             when (d.status) {
                 DownloadStatus.RUNNING, DownloadStatus.QUEUED, DownloadStatus.PAUSED ->
                     DropdownMenuItem(

@@ -50,7 +50,6 @@ import com.olaph.xdm.core.RestartResume
 import com.olaph.xdm.crash.TestReportResult
 import com.olaph.xdm.data.AppSettings
 import com.olaph.xdm.data.AutoLockDelay
-import com.olaph.xdm.data.MediaOpener
 import com.olaph.xdm.data.ThemeMode
 import com.olaph.xdm.engine.SearchEngine
 import com.olaph.xdm.youtube.YoutubeQuality
@@ -121,23 +120,6 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit) {
                     )
                 }
                 Switch(checked = settings.resumeAfterRestart, onCheckedChange = vm::setResumeAfterRestart)
-            }
-            HorizontalDivider(Modifier.padding(vertical = 8.dp))
-
-            Text("Open media with", style = MaterialTheme.typography.titleSmall)
-            Text(
-                "What tapping a finished video or audio file does. \"Open with…\" in the item's menu always offers other apps.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            MediaOpener.entries.forEach { opener ->
-                Row(
-                    Modifier.fillMaxWidth().clickable { vm.setOpenMediaWith(opener) },
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    RadioButton(selected = settings.openMediaWith == opener, onClick = { vm.setOpenMediaWith(opener) })
-                    Text(opener.label)
-                }
             }
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
 
