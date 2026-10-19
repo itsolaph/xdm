@@ -4,6 +4,7 @@ import com.olaph.xdm.data.AppSettings
 import com.olaph.xdm.data.DownloadDao
 import com.olaph.xdm.data.DownloadEntity
 import com.olaph.xdm.data.DownloadStatus
+import com.olaph.xdm.data.PauseNote
 import com.olaph.xdm.data.SegmentEntity
 import com.olaph.xdm.data.SettingsSource
 import com.olaph.xdm.engine.DownloadEngine
@@ -108,6 +109,11 @@ class DownloadManagerTest {
             mutate(id) { it.copy(savedLocation = location, savedPath = path, fileName = name, isPrivate = isPrivate) }
         }
         override suspend fun privateIds(): List<Long> = rows.value.filter { it.isPrivate }.map { it.id }
+        override suspend fun getSystemPaused(): List<DownloadEntity> =
+            rows.value.filter { it.status == DownloadStatus.PAUSED && it.error == PauseNote.SYSTEM_LIMIT }.sortedBy { it.id }
+        override suspend fun setLink(id: Long, url: String, headers: String?, sourcePage: String?) {
+            mutate(id) { it.copy(url = url, headers = headers, sourcePage = sourcePage ?: it.sourcePage) }
+        }
         override suspend fun getSegments(id: Long) = segs.value[id].orEmpty().sortedBy { it.idx }
         override fun observeSegments(id: Long): Flow<List<SegmentEntity>> = segs.map { it[id].orEmpty() }
         override suspend fun upsertSegments(segments: List<SegmentEntity>) {

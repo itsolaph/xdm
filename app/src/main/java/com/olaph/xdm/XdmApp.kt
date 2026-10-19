@@ -6,17 +6,22 @@ import com.olaph.xdm.adblock.AdBlocker
 import com.olaph.xdm.adblock.FilterListRepository
 import com.olaph.xdm.core.DownloadManager
 import com.olaph.xdm.core.FileSaver
+import com.olaph.xdm.core.Hold
 import com.olaph.xdm.core.NetworkMonitor
+import com.olaph.xdm.core.PowerMonitor
 import com.olaph.xdm.crash.CrashReporter
 import com.olaph.xdm.data.ALL_MIGRATIONS
 import com.olaph.xdm.data.BrowserDao
 import com.olaph.xdm.data.DownloadDao
+import com.olaph.xdm.data.DownloadStatus
 import com.olaph.xdm.data.SettingsRepository
 import com.olaph.xdm.data.XdmDatabase
 import com.olaph.xdm.engine.DownloadEngine
 import com.olaph.xdm.engine.HlsEngine
+import com.olaph.xdm.engine.SpeedLimiter
 import com.olaph.xdm.service.DownloadService
 import com.olaph.xdm.service.NotificationHelper
+import com.olaph.xdm.service.ScheduleAlarm
 import com.olaph.xdm.vault.VaultLock
 import com.olaph.xdm.vault.VaultStore
 import com.olaph.xdm.youtube.NewPipeResolver
@@ -28,8 +33,10 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import okhttp3.OkHttpClient
 import okhttp3.Protocol
 import java.io.File
@@ -46,9 +53,19 @@ class AppContainer(private val app: Application) {
     val dao: DownloadDao = db.downloadDao()
     val browserDao: BrowserDao = db.browserDao()
     val settings = SettingsRepository(app)
-    val fileSaver = FileSaver(app)
+
+    // Read fresh at every save, so a folder chosen a moment ago is used by the next download that finishes.
+    val fileSaver = FileSaver(
+        app,
+        target = { runBlocking(Dispatchers.IO) { settings.current() }.saveTarget },
+        onFolderUnavailable = { scope.launch { settings.setSaveFolderWarning(true) } },
+    )
     val notifications = NotificationHelper(app, fileSaver)
     val network = NetworkMonitor(app)
+    val power = PowerMonitor(app)
+
+    /** The one speed cap, shared by every connection of every download. */
+    val speedLimiter = SpeedLimiter()
 
     /** The private folder (app-internal storage) and its PIN lock. */
     val vault = VaultStore(File(app.filesDir, VaultStore.DIR_NAME))
@@ -86,20 +103,27 @@ class AppContainer(private val app: Application) {
         appVersion = BuildConfig.VERSION_CODE,
     )
 
+    // A retry after the network dropped waits for it to come back instead of using up its attempts.
+    private suspend fun awaitNetwork() {
+        network.online.first { it }
+    }
+
     val manager = DownloadManager(
         scope = scope,
         dao = dao,
         settings = settings,
-        engine = DownloadEngine(httpClient),
+        engine = DownloadEngine(httpClient, limiter = speedLimiter, awaitNetwork = { awaitNetwork() }),
         fileSaver = fileSaver,
         tempDir = tempDir,
         network = network,
         notifier = notifications,
-        hlsEngine = HlsEngine(httpClient),
+        hlsEngine = HlsEngine(httpClient, limiter = speedLimiter, awaitNetwork = { awaitNetwork() }),
         youtube = youtube,
         // The process may have been started by the system (reboot, app update); see releaseQueue().
         holdQueue = true,
         privateStore = vault,
+        power = power,
+        targetFreeSpace = fileSaver::targetFreeSpace,
     )
 
     /** Downloads may run in this process: an activity is on screen or the foreground service is up. */
@@ -108,20 +132,45 @@ class AppContainer(private val app: Application) {
         notifications.cancelResumePrompt()
     }
 
+    /** The user is looking at the app: queued downloads may run, and what Android's time limit paused carries on. */
+    fun onAppVisible() {
+        releaseQueue()
+        notifications.cancelAttention()
+        manager.resumeSystemPaused()
+    }
+
     fun start() {
         vaultLock.start()
         manager.restore()
+        // The schedule opened (or the charger came) while nothing ran: the service has to start, or the user is told.
+        manager.onScheduleReady = {
+            if (!DownloadService.start(app)) {
+                scope.launch { notifications.showScheduledReady(dao.getByStatus(DownloadStatus.QUEUED).size) }
+            }
+        }
+        scope.launch { settings.flow.map { it.speedLimitBytesPerSec }.distinctUntilChanged().collect { speedLimiter.bytesPerSecond = it } }
+        scope.launch { settings.flow.map { it.schedule }.distinctUntilChanged().collect { ScheduleAlarm.reschedule(app, it) } }
         // Ad blocker: settings first (cheap), then the filter lists off the main thread (compiled cache when nothing
         // changed). Until both are in, nothing is blocked. Toggling a list in Settings reloads.
         scope.launch { settings.flow.collect { adBlocker.configure(it.blockAds, it.adAllowedSites, it.popupMode) } }
         scope.launch(Dispatchers.IO) {
             settings.flow.map { it.enabledFilterLists }.distinctUntilChanged().collectLatest { filterLists.load(it) }
         }
-        // Keep a foreground service alive exactly while something is queued or running (once the queue may run).
+        // Keep a foreground service alive exactly while something runs or may start now (once the queue may run). Downloads
+        // that wait for the schedule or the charger do not count: an idle service only uses up the system's time budget.
         scope.launch {
-            combine(dao.observeActiveCount(), manager.queueReleased) { active, released -> active > 0 && released }
-                .distinctUntilChanged().filter { it }
-                .collect { DownloadService.start(app) }
+            combine(dao.observeOpen(), manager.queueReleased, manager.hold) { open, released, hold ->
+                val clockHold = hold == Hold.SCHEDULE || hold == Hold.CHARGING
+                released && open.any {
+                    it.status == DownloadStatus.RUNNING || (it.status == DownloadStatus.QUEUED && (it.forceStart || !clockHold))
+                }
+            }.distinctUntilChanged().filter { it }
+                .collect {
+                    if (!DownloadService.start(app)) {
+                        val waiting = dao.getByStatus(DownloadStatus.QUEUED).size
+                        if (waiting > 0) notifications.showResumePrompt(waiting, waitingForWifi = false)
+                    }
+                }
         }
     }
 }

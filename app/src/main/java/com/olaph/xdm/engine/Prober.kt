@@ -17,11 +17,11 @@ import java.io.IOException
  * Executes the call on the IO dispatcher, hands the response to [block], and aborts the in-flight
  * socket operation as soon as the calling coroutine is cancelled.
  */
-internal suspend fun <T> Call.executeAndUse(block: (Response) -> T): T = coroutineScope {
+internal suspend fun <T> Call.executeAndUse(block: suspend (Response) -> T): T = coroutineScope {
     val call = this@executeAndUse
     val watcher = launch { try { awaitCancellation() } finally { call.cancel() } }
     try {
-        withContext(Dispatchers.IO) { call.execute().use(block) }
+        withContext(Dispatchers.IO) { call.execute().use { block(it) } }
     } finally {
         watcher.cancel()
     }

@@ -13,12 +13,15 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import okhttp3.Call
 import okhttp3.OkHttpClient
 import java.io.File
 import java.io.IOException
 import java.io.RandomAccessFile
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.min
 
 /**
@@ -37,9 +40,28 @@ class DownloadEngine(
     private val persistBytes: Long = 1024 * 1024,
     /** See [SegmentPlanner.MIN_DYNAMIC_SPLIT]; tests use small values. */
     private val minSplitBytes: Long = SegmentPlanner.MIN_DYNAMIC_SPLIT,
+    /** The cap shared by all connections (see [SpeedLimiter]); the default has no limit set. */
+    private val limiter: SpeedLimiter = SpeedLimiter(),
+    /** Suspends while the device has no network, so a retry after a connection loss does not use up its attempts. */
+    private val awaitNetwork: suspend () -> Unit = {},
 ) {
     private val httpClient = client.withScopedCookies()
     val prober = Prober(httpClient)
+
+    /** Segment requests in flight, so [interruptConnections] can abort them. */
+    private val inFlight = ConcurrentHashMap.newKeySet<Call>()
+    private val interrupts = AtomicInteger()
+
+    /**
+     * The default network changed (Wi-Fi <-> mobile, or it dropped): connections bound to the old one can hang until the
+     * TCP timeout. Aborts the ones in flight; their segments see an I/O error and retry from the saved offsets, after
+     * checking that the file on the server is still the one being downloaded.
+     */
+    fun interruptConnections() {
+        interrupts.incrementAndGet()
+        httpClient.connectionPool.evictAll()
+        inFlight.forEach { it.cancel() }
+    }
 
     suspend fun download(
         request: EngineRequest,
@@ -79,6 +101,7 @@ class DownloadEngine(
         // Splitting needs ranges and a known end; a single connection has nobody to hand the other half to.
         val minSplit = if (probe.resumable && connections > 1) minSplitBytes else 0L
 
+        val validation = Validation()
         val channel = RandomAccessFile(file, "rw").channel
         try {
             coroutineScope {
@@ -112,7 +135,7 @@ class DownloadEngine(
                             while (true) {
                                 val seg = table.next(minSplit) ?: break
                                 try {
-                                    runSegment(request, probe, table, seg, channel, urls)
+                                    runSegment(request, probe, table, seg, channel, urls, validation)
                                 } finally {
                                     table.finished(seg)
                                 }
@@ -161,12 +184,14 @@ class DownloadEngine(
         seg: SegmentTable.Live,
         channel: FileChannel,
         urls: UrlHolder,
+        validation: Validation,
     ) {
         val counter = seg.downloaded
         var attempt = 0
         while (true) {
             currentCoroutineContext().ensureActive()
             val before = counter.get()
+            val interruptsBefore = interrupts.get()
             val used = urls.url
             try {
                 transferSegment(request, used, probe, table, seg, channel)
@@ -185,10 +210,43 @@ class DownloadEngine(
                 } else {
                     counter.set(0) // cannot resume mid-way: start over on this connection
                 }
-                attempt++
-                if (attempt > maxRetries) throw e
-                delay(backoffMs(attempt))
+                // A connection we aborted ourselves says nothing about the server: retry at once, without using up an attempt.
+                val interrupted = interrupts.get() != interruptsBefore
+                if (!interrupted) {
+                    attempt++
+                    if (attempt > maxRetries) throw e
+                    delay(backoffMs(attempt))
+                }
+                awaitNetwork()
+                if (interrupted) revalidate(request, probe, urls, validation)
             }
+        }
+    }
+
+    /** Remembers for which interruption the file on the server was last compared with the one being downloaded. */
+    private class Validation {
+        val mutex = Mutex()
+        @Volatile var epoch = 0
+    }
+
+    /**
+     * After the network changed, the next request goes to a server that may have moved on: compare size, ETag and
+     * Last-Modified with what the download started from, so a changed file is never stitched onto old bytes.
+     */
+    private suspend fun revalidate(request: EngineRequest, probe: ProbeResult, urls: UrlHolder, validation: Validation) {
+        if (request.knownLength > 0) return // the size was given up front and there is no validator to compare
+        val wanted = interrupts.get()
+        if (validation.epoch == wanted) return
+        validation.mutex.withLock {
+            if (validation.epoch == wanted) return
+            val fresh = renewing(urls) { url ->
+                withRetry { prober.probe(url, request.userAgent, request.headersFor?.invoke(url) ?: request.headers) }
+            }
+            val changed = (probe.contentLength > 0 && fresh.contentLength > 0 && fresh.contentLength != probe.contentLength) ||
+                (probe.etag != null && fresh.etag != null && probe.etag != fresh.etag) ||
+                (probe.lastModified != null && fresh.lastModified != null && probe.lastModified != fresh.lastModified)
+            if (changed) throw FileChangedException()
+            validation.epoch = wanted
         }
     }
 
@@ -210,37 +268,43 @@ class DownloadEngine(
 
         val ctx = currentCoroutineContext()
         val call = httpClient.newCall(buildRequest(url, request.userAgent, range = range, headers = request.headersFor?.invoke(url) ?: request.headers))
-        call.executeAndUse { r ->
-            checkStatus(r.code)
-            if (range != null) {
-                if (r.code != 206) {
-                    throw FatalDownloadException("Server ignored the Range header (HTTP ${r.code})", r.code)
+        inFlight += call
+        try {
+            call.executeAndUse { r ->
+                checkStatus(r.code)
+                if (range != null) {
+                    if (r.code != 206) {
+                        throw FatalDownloadException("Server ignored the Range header (HTTP ${r.code})", r.code)
+                    }
+                    val start = r.header("Content-Range")?.substringAfter("bytes ", "")?.substringBefore('-')
+                        ?.trim()?.toLongOrNull()
+                    if (start != null && start != offset) {
+                        throw FatalDownloadException("Server returned wrong range: $start != $offset")
+                    }
                 }
-                val start = r.header("Content-Range")?.substringAfter("bytes ", "")?.substringBefore('-')
-                    ?.trim()?.toLongOrNull()
-                if (start != null && start != offset) {
-                    throw FatalDownloadException("Server returned wrong range: $start != $offset")
+                val body = r.body ?: throw IOException("Empty response body")
+                val input = body.byteStream()
+                val buf = ByteArray(BUFFER_SIZE)
+                var pos = offset
+                // The end can move down while this runs (the segment was split). Bytes past it belong to another
+                // connection: they are never written, and the response is closed as soon as the end is reached.
+                while (pos < seg.limit) {
+                    val want = min(limiter.maxChunk(buf.size).toLong(), seg.limit - pos).toInt()
+                    val n = input.read(buf, 0, want)
+                    if (n < 0) break
+                    val allowed = table.claim(seg, pos, n)
+                    if (allowed > 0) {
+                        writeFully(channel, buf, allowed, pos)
+                        pos += allowed
+                        seg.downloaded.addAndGet(allowed.toLong())
+                    }
+                    ctx.ensureActive()
+                    limiter.acquire(n)
                 }
+                if (seg.end >= 0 && pos < seg.limit) throw IOException("Connection closed early at byte $pos of ${seg.end}")
             }
-            val body = r.body ?: throw IOException("Empty response body")
-            val input = body.byteStream()
-            val buf = ByteArray(BUFFER_SIZE)
-            var pos = offset
-            // The end can move down while this runs (the segment was split). Bytes past it belong to another
-            // connection: they are never written, and the response is closed as soon as the end is reached.
-            while (pos < seg.limit) {
-                val want = min(buf.size.toLong(), seg.limit - pos).toInt()
-                val n = input.read(buf, 0, want)
-                if (n < 0) break
-                val allowed = table.claim(seg, pos, n)
-                if (allowed > 0) {
-                    writeFully(channel, buf, allowed, pos)
-                    pos += allowed
-                    seg.downloaded.addAndGet(allowed.toLong())
-                }
-                ctx.ensureActive()
-            }
-            if (seg.end >= 0 && pos < seg.limit) throw IOException("Connection closed early at byte $pos of ${seg.end}")
+        } finally {
+            inFlight -= call
         }
     }
 
@@ -269,6 +333,7 @@ class DownloadEngine(
                 attempt++
                 if (attempt > maxRetries) throw e
                 delay(backoffMs(attempt))
+                awaitNetwork()
             }
         }
     }

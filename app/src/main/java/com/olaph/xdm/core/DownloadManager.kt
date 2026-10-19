@@ -5,23 +5,27 @@ import com.olaph.xdm.data.DownloadDao
 import com.olaph.xdm.data.DownloadEntity
 import com.olaph.xdm.data.DownloadKind
 import com.olaph.xdm.data.DownloadStatus
+import com.olaph.xdm.data.PauseNote
 import com.olaph.xdm.data.SegmentEntity
 import com.olaph.xdm.data.SettingsSource
 import com.olaph.xdm.engine.DownloadEngine
 import com.olaph.xdm.engine.EngineProgress
 import com.olaph.xdm.engine.EngineRequest
 import com.olaph.xdm.engine.FatalDownloadException
+import com.olaph.xdm.engine.FileChangedException
 import com.olaph.xdm.engine.FilenameUtils
 import com.olaph.xdm.engine.HeaderCodec
 import com.olaph.xdm.engine.HlsEngine
 import com.olaph.xdm.engine.HlsProgress
 import com.olaph.xdm.engine.HlsRequest
 import com.olaph.xdm.engine.HttpStatusException
+import com.olaph.xdm.engine.LinkMatch
 import com.olaph.xdm.engine.ProbeResult
 import com.olaph.xdm.engine.ProgressStore
 import com.olaph.xdm.engine.SavedState
 import com.olaph.xdm.engine.SegmentState
 import com.olaph.xdm.engine.SpeedMeter
+import com.olaph.xdm.engine.UrlUtils
 import com.olaph.xdm.remux.RemuxResult
 import com.olaph.xdm.remux.Remuxer
 import com.olaph.xdm.remux.DashMuxer
@@ -41,16 +45,20 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import java.io.File
+import java.time.LocalTime
 import java.util.concurrent.ConcurrentHashMap
 
 /** Notifications raised from the manager so they work independently of the service lifecycle. */
@@ -83,6 +91,9 @@ sealed interface MoveResult {
     /** Nothing changed (apart from a removed partial copy). */
     data class Failed(val reason: String) : MoveResult
 }
+
+/** A candidate replacement link, probed and compared with the download it is meant for. */
+class LinkCheck(val probe: ProbeResult, val verdict: LinkMatch.Verdict)
 
 /** Live (non-persisted) numbers for a running download. */
 data class LiveProgress(
@@ -134,10 +145,19 @@ class DownloadManager(
     holdQueue: Boolean = false,
     /** The private folder: where private downloads end up instead of [fileSaver]. Null = private downloads fail. */
     private val privateStore: VaultStore? = null,
+    /** The charger, for the schedule's "only while charging". */
+    private val power: PowerState = AlwaysCharging,
+    /** Local time of day, for the schedule's window. */
+    private val timeOfDay: () -> LocalTime = { LocalTime.now() },
+    /** Free bytes on the volume of a custom save folder; null = not known (or no custom folder). */
+    private val targetFreeSpace: () -> Long? = { null },
 ) {
-    private enum class StopReason { PAUSE, CANCEL, DELETE, NETWORK, REQUEUE }
+    /** NETWORK and SCHEDULE put the item back in the queue, SYSTEM pauses it with a note so it can resume by itself. */
+    private enum class StopReason { PAUSE, CANCEL, DELETE, NETWORK, SCHEDULE, SYSTEM, REQUEUE }
 
     private val jobs = ConcurrentHashMap<Long, Job>()
+    /** Downloads started with "Start now": the schedule does not apply to them while they run. */
+    private val forced = ConcurrentHashMap.newKeySet<Long>()
     /**
      * Why a job was stopped, per job rather than per download: the next job of the same download can already be
      * running (and be stopped again) while the previous one is still unwinding.
@@ -155,6 +175,18 @@ class DownloadManager(
 
     private val _waitingForWifi = MutableStateFlow(false)
     val waitingForWifi: StateFlow<Boolean> = _waitingForWifi
+
+    private val _hold = MutableStateFlow<Hold?>(null)
+    /** Why queued downloads (without "Start now") are not starting right now; null = nothing holds them back. */
+    val hold: StateFlow<Hold?> = _hold
+    private var lastHold: Hold? = null
+
+    /**
+     * Called when the schedule window opens (or the charger is plugged in) and nothing is running: the queue is put on
+     * hold and this should start the foreground service (its start releases the queue) or tell the user. Null = the
+     * downloads just start.
+     */
+    @Volatile var onScheduleReady: (() -> Unit)? = null
 
     private val _queueReleased = MutableStateFlow(!holdQueue)
     val queueReleased: StateFlow<Boolean> = _queueReleased
@@ -193,14 +225,37 @@ class DownloadManager(
         }
     }
 
+    private data class QueueInputs(val maxParallel: Int, val wifiOnly: Boolean, val plan: SchedulePlan, val metered: Boolean, val charging: Boolean)
+
     init {
-        // Re-evaluate the queue whenever the limits or the network change.
+        // Re-evaluate the queue whenever the limits, the schedule, the network or the charger change.
         scope.launch {
-            combine(settings.flow, network.metered) { s, metered -> Triple(s.maxParallel, s.wifiOnly, metered) }
-                .distinctUntilChanged()
-                .collect { pump() }
+            combine(settings.flow, network.metered, power.charging) { s, metered, charging ->
+                QueueInputs(s.maxParallel, s.wifiOnly, s.schedule, metered, charging)
+            }.distinctUntilChanged().collect { pump() }
+        }
+        // The window opens and closes by the clock: look again at each of those moments (and at least once a minute,
+        // in case the clock was changed).
+        scope.launch {
+            settings.flow.map { it.schedule }.distinctUntilChanged().collectLatest { plan ->
+                while (true) {
+                    val wait = RunGate.secondsUntilChange(timeOfDay(), plan) ?: break
+                    delay(minOf(wait, MAX_TICK_SECONDS) * 1000 + 500)
+                    pump()
+                }
+            }
+        }
+        // Connections bound to the previous network can hang for a long time: abort them, the segments retry on the new one.
+        scope.launch {
+            network.switches.collect {
+                engine.interruptConnections()
+                hlsEngine.interruptConnections()
+            }
         }
     }
+
+    /** Looks at the queue again; for callers that changed something the manager cannot observe (the clock, mostly). */
+    suspend fun reevaluate() = pump()
 
     /** Call once at app start: anything that was RUNNING when the process died goes back to the queue. */
     fun restore() {
@@ -224,8 +279,12 @@ class DownloadManager(
         headers: Map<String, String> = emptyMap(),
         kind: String = DownloadKind.HTTP,
         isPrivate: Boolean = false,
+        /** The page the link was captured on; without one, a Referer header (if any) stands in. */
+        sourcePage: String? = null,
     ): Long {
         val name = FilenameUtils.sanitize(fileName.ifBlank { FilenameUtils.resolve(null, url, probe?.mimeType) })
+        val page = (sourcePage ?: headers.entries.firstOrNull { it.key.equals("Referer", ignoreCase = true) }?.value)
+            ?.takeIf { UrlUtils.isHttpUrl(it) }
         val id = pumpMutex.withLock {
             val newId = dao.insert(
                 DownloadEntity(
@@ -242,6 +301,7 @@ class DownloadManager(
                     headers = HeaderCodec.encode(headers),
                     kind = kind,
                     isPrivate = isPrivate,
+                    sourcePage = page,
                 ),
             )
             pumpLocked()
@@ -280,8 +340,11 @@ class DownloadManager(
         }
     }
 
-    /** Runs [block] serialized with the scheduler, then re-evaluates the queue. */
-    private fun act(block: suspend () -> Unit) = scope.launch {
+    /**
+     * Runs [block] serialized with the scheduler, then re-evaluates the queue. Undispatched, so the actions queue up for
+     * the lock in the order they were called ("pause" followed by "resume" must not swap places on another thread).
+     */
+    private fun act(block: suspend () -> Unit) = scope.launch(start = CoroutineStart.UNDISPATCHED) {
         pumpMutex.withLock {
             block()
             pumpLocked()
@@ -318,6 +381,69 @@ class DownloadManager(
     }
 
     fun retry(id: Long) = resume(id)
+
+    // ---- Android's background time limit ----
+
+    /**
+     * Android ended the foreground service's time (dataSync limit): pauses everything that runs or waits, cleanly (the
+     * engines save their segments on the way out), and marks it with [PauseNote.SYSTEM_LIMIT] so it can be picked up by
+     * [resumeSystemPaused]. Returns how many downloads were affected; suspends until the running ones are stopped.
+     */
+    suspend fun pauseForSystem(): Int = pumpMutex.withLock {
+        val running = jobs.entries.map { it.key to it.value }
+        running.forEach { (id, _) -> stop(id, StopReason.SYSTEM) }
+        val waiting = dao.getByStatus(DownloadStatus.QUEUED).filter { !jobs.containsKey(it.id) }
+        waiting.forEach { dao.setStatus(it.id, DownloadStatus.PAUSED, PauseNote.SYSTEM_LIMIT) }
+        running.forEach { (_, job) -> job.join() } // the job's cleanup does not need the scheduler lock
+        running.size + waiting.size
+    }
+
+    /** The user is back (app opened, or Resume tapped): what Android paused carries on. User-paused items stay paused. */
+    fun resumeSystemPaused() {
+        scope.launch { dao.getSystemPaused().forEach { resume(it.id) } }
+    }
+
+    // ---- a new link for a download that stopped ----
+
+    /**
+     * Probes [url] and compares it with download [id]: same size and no ETag change = the bytes on disk can be kept.
+     * Throws when the link cannot be reached (the caller shows the message).
+     */
+    suspend fun checkLink(id: Long, url: String, headers: Map<String, String>? = null): LinkCheck {
+        val d = dao.get(id) ?: throw FatalDownloadException("The download is gone")
+        val probe = engine.prober.probe(url.trim(), settings.current().userAgent, headers ?: HeaderCodec.decode(d.headers))
+        return LinkCheck(probe, LinkMatch.decide(d.totalBytes, d.etag, probe.contentLength, probe.etag))
+    }
+
+    /**
+     * Swaps the link (and, when given, the headers and source page of the new capture) of download [id]. Without
+     * [restart] the segments already on disk stay and the download continues; with it everything starts from zero.
+     * The item goes back in the queue. False if the download cannot take a new link.
+     */
+    suspend fun replaceLink(
+        id: Long,
+        url: String,
+        probe: ProbeResult,
+        headers: Map<String, String>? = null,
+        sourcePage: String? = null,
+        restart: Boolean = false,
+    ): Boolean = pumpMutex.withLock {
+        val d = dao.get(id) ?: return@withLock false
+        if (!LinkRefresh.canChangeLink(d)) return@withLock false
+        jobs[id]?.let {
+            stop(id, StopReason.PAUSE)
+            it.join()
+        }
+        dao.setLink(id, url.trim(), if (headers != null) HeaderCodec.encode(headers) else d.headers, sourcePage?.takeIf { UrlUtils.isHttpUrl(it) })
+        if (restart) {
+            dao.resetProgress(id)
+            withContext(Dispatchers.IO) { deleteTemp(id) }
+            dao.updatePlan(id, probe.contentLength, probe.acceptRanges, probe.etag, probe.lastModified, probe.mimeType)
+        }
+        dao.requeue(id)
+        pumpLocked()
+        true
+    }
 
     fun cancel(id: Long) = act {
         val d = dao.get(id) ?: return@act
@@ -483,28 +609,56 @@ class DownloadManager(
     private suspend fun pumpLocked() {
         if (!_queueReleased.value) return
         val s = settings.current()
-        val blocked = s.wifiOnly && network.metered.value
-        _waitingForWifi.value = blocked
-        if (blocked) {
-            jobs.forEach { (id, job) -> if (stopReasons[job] == null) stop(id, StopReason.NETWORK) }
+        val plan = s.schedule
+        val now = timeOfDay()
+        val charging = power.charging.value
+        val metered = network.metered.value
+        fun holdFor(force: Boolean) = RunGate.holdFor(now, charging, s.wifiOnly, metered, plan, force)
+
+        val general = holdFor(false)
+        _hold.value = general
+        _waitingForWifi.value = general == Hold.WIFI
+
+        // Whatever runs but may not any more goes back to the queue (Wi-Fi gone, window closed, charger unplugged).
+        jobs.forEach { (id, job) ->
+            if (stopReasons[job] != null) return@forEach
+            when (holdFor(id in forced)) {
+                Hold.WIFI -> stop(id, StopReason.NETWORK)
+                Hold.SCHEDULE, Hold.CHARGING -> stop(id, StopReason.SCHEDULE)
+                null -> Unit
+            }
+        }
+
+        val queued = dao.getByStatus(DownloadStatus.QUEUED)
+        val wake = onScheduleReady
+        val opened = (lastHold == Hold.SCHEDULE || lastHold == Hold.CHARGING) && general == null
+        lastHold = general
+        if (wake != null && opened && jobs.isEmpty() && queued.any { !it.forceStart }) {
+            // Nothing is running, so there is no foreground service: the queue waits until one is up (its start releases it).
+            _queueReleased.value = false
+            wake()
             return
         }
+
         var running = jobs.size
-        for (d in dao.getByStatus(DownloadStatus.QUEUED)) {
+        for (d in queued) {
             if (jobs.containsKey(d.id)) continue
+            if (holdFor(d.forceStart) != null) continue
             if (running >= s.maxParallel && !d.forceStart) continue
-            start(d.id)
+            start(d.id, d.forceStart)
             running++
         }
     }
 
-    private suspend fun start(id: Long) {
+    private suspend fun start(id: Long, force: Boolean = false) {
         dao.setStatus(id, DownloadStatus.RUNNING)
+        if (force) forced += id
         val job = scope.launch(Dispatchers.Default, start = CoroutineStart.LAZY) { runDownload(id) }
         jobs[id] = job
         // A job stopped before it got to run skips runDownload() and its cleanup altogether: do that part here.
         job.invokeOnCompletion {
             if (jobs.remove(id, job)) {
+                forced -= id
                 scope.launch {
                     withContext(NonCancellable) { onStopped(id, stopReasons.remove(job)) }
                     pump()
@@ -529,6 +683,7 @@ class DownloadManager(
             } else if (d.isHls) {
                 runHls(d, s, temp)
             } else {
+                checkSpace(d)
                 val segments = dao.getSegments(id)
                 val saved = if (segments.isNotEmpty() && d.totalBytes > 0) {
                     SavedState(d.totalBytes, d.acceptRanges == true, d.etag, d.lastModified, segments.map { it.toState() })
@@ -549,7 +704,8 @@ class DownloadManager(
                 fileSaver
             }
             val target = withContext(Dispatchers.IO) { destination.save(result.file, result.fileName, result.mimeType) }
-            dao.markCompleted(id, clock(), target.location, target.displayPath, target.fileName, result.totalBytes, result.note)
+            val note = listOfNotNull(result.note, target.note).joinToString("\n").ifEmpty { null }
+            dao.markCompleted(id, clock(), target.location, target.displayPath, target.fileName, result.totalBytes, note)
             dao.deleteSegments(id)
             withContext(Dispatchers.IO) { deleteTemp(id) }
             dao.get(id)?.let { notifier.onCompleted(it) }
@@ -567,17 +723,46 @@ class DownloadManager(
             }
             withContext(NonCancellable) {
                 stopReasons.remove(self)
-                dao.setStatus(id, DownloadStatus.FAILED, describe(e))
-                dao.get(id)?.let { notifier.onFailed(it) }
+                if (e is FileChangedException) {
+                    // The server's file is not the one on disk any more: the old bytes are worthless, begin again.
+                    dao.resetProgress(id)
+                    deleteTemp(id)
+                    dao.requeue(id)
+                } else {
+                    dao.setStatus(id, DownloadStatus.FAILED, describe(e))
+                    dao.get(id)?.let { notifier.onFailed(it) }
+                }
             }
         } finally {
             jobs.remove(id)
+            forced -= id
             // A resume/retry that came in after onStopped() saw the job still registered and only left REQUEUE
             // behind. Order matters: the job is removed first, then the reason (resume() relies on it).
             if (stopReasons.remove(self) == StopReason.REQUEUE) withContext(NonCancellable) { requeueStopped(id) }
             meters.remove(id)
             _live.update { it - id }
             scope.launch { pump() }
+        }
+    }
+
+    /**
+     * Fails early, with the numbers, when the bytes still to fetch do not fit where the partial file lives, or (for a
+     * custom folder, when its volume can be read) when the finished file will not fit where it goes.
+     */
+    private fun checkSpace(d: DownloadEntity) {
+        if (d.totalBytes <= 0) return
+        val remaining = (d.totalBytes - d.downloadedBytes).coerceAtLeast(0)
+        val here = freeSpace(tempDir)
+        if (remaining > here) {
+            throw FatalDownloadException("Not enough free space: ${Formatters.bytes(remaining)} needed, ${Formatters.bytes(here)} free")
+        }
+        if (d.isPrivate) return
+        targetFreeSpace()?.let { there ->
+            if (d.totalBytes > there) {
+                throw FatalDownloadException(
+                    "Not enough free space in the chosen folder: ${Formatters.bytes(d.totalBytes)} needed, ${Formatters.bytes(there)} free",
+                )
+            }
         }
     }
 
@@ -729,7 +914,8 @@ class DownloadManager(
     private suspend fun onStopped(id: Long, reason: StopReason?) {
         when (reason) {
             StopReason.PAUSE -> dao.setStatus(id, DownloadStatus.PAUSED)
-            StopReason.REQUEUE, StopReason.NETWORK -> dao.requeue(id)
+            StopReason.SYSTEM -> dao.setStatus(id, DownloadStatus.PAUSED, PauseNote.SYSTEM_LIMIT)
+            StopReason.REQUEUE, StopReason.NETWORK, StopReason.SCHEDULE -> dao.requeue(id)
             StopReason.CANCEL -> finishCancelled(id)
             StopReason.DELETE -> Unit
             null -> Unit // scope cancelled (process shutting down): stays RUNNING, restore() requeues it
@@ -768,6 +954,7 @@ class DownloadManager(
 
     private companion object {
         const val HLS_PERSIST_MS = 1_000L
+        const val MAX_TICK_SECONDS = 60L
         const val ASSEMBLED = "assembled.properties"
         val STREAM_EXTENSIONS = setOf("ts", "mp4", "m4v", "m4a", "aac", "mp3", "m3u8", "m3u")
     }

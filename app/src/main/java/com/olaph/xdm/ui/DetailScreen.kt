@@ -14,6 +14,7 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -37,6 +38,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.olaph.xdm.core.Formatters
+import com.olaph.xdm.core.LinkRefresh
 import com.olaph.xdm.data.DownloadStatus
 import com.olaph.xdm.data.SegmentEntity
 
@@ -44,7 +46,7 @@ import com.olaph.xdm.data.SegmentEntity
 @Composable
 fun DetailScreen(vm: MainViewModel, id: Long, onBack: () -> Unit) {
     val items by vm.items.collectAsStateWithLifecycle()
-    val waitingForWifi by vm.waitingForWifi.collectAsStateWithLifecycle()
+    val queue by vm.queueStatus.collectAsStateWithLifecycle()
     val segmentsFlow = remember(id) { vm.segments(id) }
     val segments by segmentsFlow.collectAsStateWithLifecycle(emptyList())
     val item = items?.firstOrNull { it.entity.id == id }
@@ -93,11 +95,19 @@ fun DetailScreen(vm: MainViewModel, id: Long, onBack: () -> Unit) {
             }
             Text(sizeLine(item), style = MaterialTheme.typography.bodyMedium)
             Text(
-                statusLine(item, waitingForWifi),
+                statusLine(item, queue),
                 style = MaterialTheme.typography.bodyMedium,
                 color = if (d.status == DownloadStatus.FAILED) MaterialTheme.colorScheme.error
                 else MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            if (LinkRefresh.offerRefresh(d)) {
+                Text(
+                    "The server refused the link, which usually means it expired. Open the page it came from and start the same download again to get a fresh one.",
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
+                Button(onClick = { vm.requestLinkRefresh(d.id) }, modifier = Modifier.padding(top = 4.dp)) { Text("Refresh link") }
+            }
 
             Spacer(Modifier.height(20.dp))
             if (d.isHls) {
@@ -122,7 +132,7 @@ fun DetailScreen(vm: MainViewModel, id: Long, onBack: () -> Unit) {
 
             Spacer(Modifier.height(20.dp))
             InfoRow("URL", d.url, selectable = true)
-            InfoRow("Saved to", d.savedPath ?: "Download/XDM/${d.fileName} (when finished)")
+            InfoRow("Saved to", d.savedPath ?: "${d.fileName} in your save location (when finished)")
             InfoRow("Size", if (d.totalBytes > 0) "${Formatters.bytes(d.totalBytes)} (${d.totalBytes} bytes)" else "Unknown")
             InfoRow("Downloaded", Formatters.bytes(item.downloaded))
             InfoRow("Resume support", when {

@@ -98,7 +98,48 @@ class MigrationTest {
         assertTrue(schemaFile(3).readText().contains("\"version\": 3"))
         assertTrue(schemaFile(4).readText().contains("\"version\": 4"))
         assertTrue(schemaFile(5).readText().contains("\"version\": 5"))
-        assertEquals(listOf(1 to 2, 2 to 3, 3 to 4, 4 to 5), ALL_MIGRATIONS.map { it.startVersion to it.endVersion })
+        assertTrue(schemaFile(6).readText().contains("\"version\": 6"))
+        assertEquals(listOf(1 to 2, 2 to 3, 3 to 4, 4 to 5, 5 to 6), ALL_MIGRATIONS.map { it.startVersion to it.endVersion })
+    }
+
+    @Test fun migration5To6AddsAnEmptySourcePageAndKeepsEverythingElse() {
+        createStatements(5).forEach { migrated.exec(it) }
+        migrated.exec(
+            "INSERT INTO downloads (id, url, fileName, mimeType, totalBytes, downloadedBytes, status, acceptRanges, etag, lastModified, " +
+                "connections, createdAt, completedAt, error, savedLocation, savedPath, forceStart, headers, kind, segmentsDone, segmentsTotal, " +
+                "extra, isPrivate, playbackPositionMs) VALUES " +
+                "(4, 'https://x.test/a.zip', 'a.zip', 'application/zip', 900, 300, 'PAUSED', 1, '\"e\"', NULL, 4, 77, NULL, NULL, NULL, NULL, 0, " +
+                "'Referer=https%3A%2F%2Fx.test%2F', 'HTTP', 0, 0, NULL, 1, 4200)",
+        )
+        migrated.exec("INSERT INTO segments (downloadId, idx, start, `end`, downloaded) VALUES (4, 0, 0, 899, 300)")
+
+        MIGRATION_5_6.migrate(supportDb(migrated))
+
+        migrated.createStatement().use { st ->
+            st.executeQuery("SELECT url, status, etag, isPrivate, playbackPositionMs, headers, sourcePage FROM downloads WHERE id = 4").use { rs ->
+                assertTrue(rs.next())
+                assertEquals("https://x.test/a.zip", rs.getString("url"))
+                assertEquals("PAUSED", rs.getString("status"))
+                assertEquals("\"e\"", rs.getString("etag"))
+                assertEquals(1, rs.getInt("isPrivate"))
+                assertEquals("the unused column is kept", 4200L, rs.getLong("playbackPositionMs"))
+                assertEquals("Referer=https%3A%2F%2Fx.test%2F", rs.getString("headers"))
+                assertNull("existing rows have no source page", rs.getString("sourcePage"))
+            }
+            st.executeQuery("SELECT COUNT(*), SUM(downloaded) FROM segments WHERE downloadId = 4").use { rs ->
+                rs.next(); assertEquals(1, rs.getInt(1)); assertEquals(300L, rs.getLong(2))
+            }
+        }
+        // writable, and rows inserted the old way still work
+        migrated.exec("UPDATE downloads SET sourcePage = 'https://x.test/page' WHERE id = 4")
+        migrated.exec("INSERT INTO downloads (url, fileName, connections, createdAt, status, forceStart, downloadedBytes, totalBytes) VALUES ('https://x.test/n', 'n', 4, 1, 'QUEUED', 0, 0, -1)")
+    }
+
+    @Test fun migratedV6SchemaEqualsFreshV6Schema() {
+        createStatements(5).forEach { migrated.exec(it) }
+        MIGRATION_5_6.migrate(supportDb(migrated))
+        createStatements(6).forEach { fresh.exec(it) }
+        assertSameSchema()
     }
 
     @Test fun migration4To5MakesEveryExistingDownloadPublicAndUnwatched() {
@@ -214,7 +255,7 @@ class MigrationTest {
         assertSameSchema()
     }
 
-    @Test fun fullChainFromV1EqualsFreshV5Schema() {
+    @Test fun fullChainFromV1EqualsFreshV6Schema() {
         createStatements(1).forEach { migrated.exec(it) }
         migrated.exec(
             "INSERT INTO downloads (id, url, fileName, mimeType, totalBytes, downloadedBytes, status, acceptRanges, etag, lastModified, " +
@@ -222,19 +263,23 @@ class MigrationTest {
                 "(1, 'https://old.test/a.zip', 'a.zip', NULL, -1, 0, 'QUEUED', NULL, NULL, NULL, 8, 1, NULL, NULL, NULL, NULL, 0)",
         )
         ALL_MIGRATIONS.sortedBy { it.startVersion }.forEach { it.migrate(supportDb(migrated)) }
-        createStatements(5).forEach { fresh.exec(it) }
+        createStatements(6).forEach { fresh.exec(it) }
         assertSameSchema()
         migrated.createStatement().use { st ->
-            st.executeQuery("SELECT kind, headers, extra, isPrivate, playbackPositionMs FROM downloads WHERE id = 1").use { rs ->
+            st.executeQuery("SELECT kind, headers, extra, isPrivate, playbackPositionMs, sourcePage FROM downloads WHERE id = 1").use { rs ->
                 assertTrue(rs.next()); assertEquals("HTTP", rs.getString("kind")); assertNull(rs.getString("headers"))
                 assertNull(rs.getString("extra")); assertEquals(0, rs.getInt("isPrivate")); assertEquals(0L, rs.getLong("playbackPositionMs"))
+                assertNull(rs.getString("sourcePage"))
+            }
+            st.executeQuery("SELECT url, fileName, status FROM downloads WHERE id = 1").use { rs ->
+                assertTrue(rs.next()); assertEquals("https://old.test/a.zip", rs.getString("url")); assertEquals("QUEUED", rs.getString("status"))
             }
         }
     }
 
     @Test fun everyStartingVersionReachesTheCurrentSchema() {
-        createStatements(5).forEach { fresh.exec(it) }
-        for (start in 1..4) {
+        createStatements(6).forEach { fresh.exec(it) }
+        for (start in 1..5) {
             DriverManager.getConnection("jdbc:sqlite::memory:").use { db ->
                 createStatements(start).forEach { db.exec(it) }
                 ALL_MIGRATIONS.filter { it.startVersion >= start }.sortedBy { it.startVersion }.forEach { it.migrate(supportDb(db)) }

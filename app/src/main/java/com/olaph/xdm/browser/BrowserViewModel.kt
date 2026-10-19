@@ -45,6 +45,7 @@ import com.olaph.xdm.adblock.filters.RequestTypeInference
 import com.olaph.xdm.core.PendingDownload
 import com.olaph.xdm.data.AppSettings
 import com.olaph.xdm.data.BookmarkEntity
+import com.olaph.xdm.data.DownloadEntity
 import com.olaph.xdm.data.HistoryEntity
 import com.olaph.xdm.engine.DownloadHeaders
 import com.olaph.xdm.engine.FilenameUtils
@@ -123,6 +124,39 @@ class BrowserViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Opens the YouTube sheet (set by the main screen, like [downloadHandler]). */
     var youtubeHandler: ((YoutubeLink) -> Unit)? = null
+
+    /** The download whose expired link the browser is waiting to replace; set while "refresh mode" is on. */
+    class RefreshTarget(val downloadId: Long, val fileName: String)
+
+    var refreshTarget by mutableStateOf<RefreshTarget?>(null)
+        private set
+
+    /** Gets the capture made in refresh mode instead of the add sheet (set by the main screen). */
+    var refreshHandler: ((downloadId: Long, capture: PendingDownload) -> Unit)? = null
+
+    /** Opens the page [download] came from, and treats the next download started there as its new link. */
+    fun startRefresh(download: DownloadEntity) {
+        val page = download.sourcePage ?: return
+        refreshTarget = RefreshTarget(download.id, download.fileName)
+        newTab(page)
+    }
+
+    fun cancelRefresh() {
+        refreshTarget = null
+    }
+
+    /** Every capture ends up here: in refresh mode it replaces the waiting download's link, otherwise it is a new download. */
+    private fun deliver(capture: PendingDownload) {
+        val target = refreshTarget
+        if (target == null) {
+            downloadHandler?.invoke(capture)
+        } else if (capture.kind != DownloadKind.HTTP) {
+            toast("Pick a plain file link: streams can't be refreshed")
+        } else {
+            refreshTarget = null
+            refreshHandler?.invoke(target.downloadId, capture)
+        }
+    }
 
     /** The video sheet's "Save to private folder" box; null = not touched, the default from Settings applies. */
     var mediaSavePrivate by mutableStateOf<Boolean?>(null)
@@ -321,9 +355,7 @@ class BrowserViewModel(app: Application) : AndroidViewModel(app) {
         val tab = tabs.firstOrNull { it.id == tabId }
         val ua = tab?.webView?.settings?.userAgentString ?: settings.userAgent
         val headers = DownloadHeaders.fromBrowser(cookiesFor(tab, url), ua, tab?.url)
-        downloadHandler?.invoke(
-            PendingDownload(url, headers, FilenameUtils.resolve(null, url, null), pageUrl = tab?.url),
-        )
+        deliver(PendingDownload(url, headers, FilenameUtils.resolve(null, url, null), pageUrl = tab?.url))
     }
 
     private fun onDownloadStart(tab: BrowserTab, url: String, userAgent: String?, contentDisposition: String?, mimeType: String?, length: Long) {
@@ -333,9 +365,9 @@ class BrowserViewModel(app: Application) : AndroidViewModel(app) {
             return
         }
         val name = FilenameUtils.resolve(contentDisposition, url, mimeType?.takeIf { it.isNotBlank() })
-        if (settings.interceptDownloads) {
+        if (settings.interceptDownloads || refreshTarget != null) {
             val headers = DownloadHeaders.fromBrowser(cookiesFor(tab, url), userAgent, tab.url)
-            downloadHandler?.invoke(PendingDownload(url, headers, name, mimeType, length, tab.url))
+            deliver(PendingDownload(url, headers, name, mimeType, length, tab.url))
         } else {
             systemDownload(tab, url, userAgent, mimeType, name)
         }
@@ -468,7 +500,7 @@ class BrowserViewModel(app: Application) : AndroidViewModel(app) {
         } else {
             FilenameUtils.sanitize("$title.${option.extension}")
         }
-        downloadHandler?.invoke(
+        deliver(
             PendingDownload(
                 url = option.url,
                 headers = headers,

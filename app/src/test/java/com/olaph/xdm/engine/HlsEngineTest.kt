@@ -2,10 +2,12 @@ package com.olaph.xdm.engine
 
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.Dispatcher
@@ -467,5 +469,48 @@ class HlsEngineTest {
         assertTrue(job.isCancelled)
         assertTrue(req.workDir.listFiles { f -> f.name.endsWith(".tmp") }!!.isEmpty())
         req.workDir.listFiles { f -> f.name.endsWith(".seg") }!!.forEach { assertTrue(it.length() > 0) }
+    }
+
+    // ---- speed limit ----
+
+    @Test fun theSharedSpeedLimitAppliesToSegmentDownloads() = runBlocking {
+        val (segs, pl) = plainStream(5, size = 100_000)
+        routes["/index.m3u8"] = { text(pl) }
+        // A clock that only moves when the limiter sleeps: the time the limit costs is exact, and nothing really waits.
+        var nanos = 0L
+        val limiter = SpeedLimiter(nanoTime = { nanos }, sleep = { nanos += it }).apply { bytesPerSecond = 100_000 }
+        val req = request("/index.m3u8", concurrency = 1)
+        HlsEngine(OkHttpClient(), maxRetries = 3, backoffMs = { 1 }, tickMs = 10, limiter = limiter).download(req)
+
+        assertArrayEquals(concat(segs), req.output.readBytes())
+        val bytes = segs.sumOf { it.size }
+        // bytes / rate seconds, minus the quarter second the limiter lets through at once
+        val seconds = nanos / 1e9
+        assertTrue("limited run took $seconds s", seconds in (bytes / 100_000.0 - 0.3)..(bytes / 100_000.0))
+    }
+
+    @Test fun aNetworkChangeRestartsHangingSegmentsWithoutCostingAnAttempt() = runBlocking {
+        val (segs, pl) = plainStream(3)
+        routes["/index.m3u8"] = { text(pl) }
+        val stalls = java.util.concurrent.CountDownLatch(1)
+        val stallOnce = java.util.concurrent.atomic.AtomicBoolean(true)
+        routes["/seg1.ts"] = {
+            if (stallOnce.compareAndSet(true, false)) {
+                stalls.countDown()
+                MockResponse().setSocketPolicy(okhttp3.mockwebserver.SocketPolicy.NO_RESPONSE)
+            } else {
+                body(segs[1])
+            }
+        }
+        val engine = HlsEngine(
+            OkHttpClient.Builder().readTimeout(60, TimeUnit.SECONDS).build(),
+            maxRetries = 0, backoffMs = { 1 }, tickMs = 10,
+        )
+        val req = request("/index.m3u8", concurrency = 1)
+        val job = async(Dispatchers.Default) { engine.download(req) }
+        withContext(Dispatchers.IO) { assertTrue(stalls.await(15, TimeUnit.SECONDS)) }
+        engine.interruptConnections()
+        withTimeout(20_000) { job.await() }
+        assertArrayEquals(concat(segs), req.output.readBytes())
     }
 }

@@ -524,7 +524,7 @@ private fun ActiveRow(item: DownloadItem, vm: PrivateViewModel, selecting: Boole
                 Spacer(Modifier.height(4.dp))
                 Text(sizeLine(item), style = MaterialTheme.typography.bodySmall)
                 Text(
-                    statusLine(item, waitingForWifi = false),
+                    statusLine(item, QueueStatus(null, null)),
                     style = MaterialTheme.typography.bodySmall,
                     color = if (d.status == DownloadStatus.FAILED) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 2,

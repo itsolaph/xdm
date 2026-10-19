@@ -39,6 +39,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.olaph.xdm.XdmApp
 import com.olaph.xdm.browser.BrowserPage
 import com.olaph.xdm.browser.BrowserViewModel
+import com.olaph.xdm.service.DownloadService
 
 // A FragmentActivity because BiometricPrompt (private folder unlock) needs one.
 class MainActivity : FragmentActivity() {
@@ -50,13 +51,18 @@ class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        // Opening the app (also from the "ready to resume" notification) lets queued downloads run.
-        (application as XdmApp).container.releaseQueue()
         if (savedInstanceState == null) {
             requestRuntimePermissions(this, permissions::launch)
             handle(intent)
         }
         setContent { XdmRoot(vm, browserVm) }
+    }
+
+    // Opening the app (also from the "ready to resume" notification) lets queued downloads run and carries on what
+    // Android's background time limit paused; coming back from the background counts as well.
+    override fun onStart() {
+        super.onStart()
+        (application as XdmApp).container.onAppVisible()
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -65,12 +71,18 @@ class MainActivity : FragmentActivity() {
     }
 
     private fun handle(intent: Intent?) {
-        if (intent?.action == ACTION_OPEN_PRIVATE) vm.openPrivateRequest.value = true
+        when (intent?.action) {
+            ACTION_OPEN_PRIVATE -> vm.openPrivateRequest.value = true
+            ACTION_REFRESH_LINK -> intent.getLongExtra(DownloadService.EXTRA_ID, -1).takeIf { it > 0 }?.let { vm.requestLinkRefresh(it) }
+        }
     }
 
     companion object {
         /** From a private download's notification: show the private folder (which asks for the PIN). */
         const val ACTION_OPEN_PRIVATE = "com.olaph.xdm.OPEN_PRIVATE"
+
+        /** From a failed download's notification: open its page in the browser to capture a fresh link. */
+        const val ACTION_REFRESH_LINK = "com.olaph.xdm.REFRESH_LINK"
     }
 
     // Clipboard reads are only allowed once the window has focus (Android 10+).
@@ -124,6 +136,32 @@ fun XdmRoot(vm: MainViewModel, browser: BrowserViewModel) {
             browser.downloadHandler = { vm.openAddSheet(it) }
             onDispose { browser.downloadHandler = null }
         }
+
+        // "Refresh link": the browser opens the download's page; what it captures next is offered as the new link.
+        DisposableEffect(browser) {
+            browser.refreshHandler = { id, capture ->
+                vm.offerReplacement(id, capture.url, capture.headers, capture.pageUrl)
+                route = ROUTE_LIST
+            }
+            onDispose { browser.refreshHandler = null }
+        }
+        val refreshRequest by vm.linkRefreshRequest.collectAsStateWithLifecycle()
+        LaunchedEffect(refreshRequest) {
+            val d = refreshRequest ?: return@LaunchedEffect
+            vm.linkRefreshRequest.value = null
+            browser.startRefresh(d)
+            route = ROUTE_BROWSER
+        }
+        val changeUrlFor by vm.changeUrlFor.collectAsStateWithLifecycle()
+        changeUrlFor?.let { d ->
+            ChangeUrlDialog(
+                d,
+                onDismiss = { vm.changeUrlFor.value = null },
+                onCheck = { url -> vm.changeUrlFor.value = null; vm.offerReplacement(d.id, url) },
+            )
+        }
+        val replacement by vm.replacement.collectAsStateWithLifecycle()
+        replacement?.let { ReplacementDialog(it, onConfirm = vm::confirmReplacement, onDismiss = vm::dismissReplacement) }
 
         when (route) {
             ROUTE_DETAIL -> {

@@ -23,11 +23,33 @@ XDM is for downloading files and videos you're **allowed** to download: your own
 - **Queue** with a parallel limit (3 by default), pause / resume / cancel / retry per item, pause all / resume all, and "Start now" to skip the limit.
 - Foreground service with a summary notification plus per-download controls. It stops by itself when nothing is running.
 - **Wi-Fi only** option, which waits while the network is metered.
-- Finished files go to `Download/XDM/` (MediaStore on Android 10+), or into the private folder (below).
+- Finished files go to `Download/XDM/` (MediaStore on Android 10+), to a folder you choose (below), or into the private folder (below).
 - **Link capture**: share a URL to XDM, use "Open with" on download-type links (apk, zip, mp4, pdf, iso, …), or accept the offer for a URL on the clipboard.
 - Bulk delete per tab and a multi-select mode, optionally removing the files from storage too.
 - Tapping a finished file opens it with another app ("Open with…" in the item's menu always asks which). XDM has no media player of its own.
 - Finished videos show a thumbnail in the list (a frame picked once and cached as a small JPEG in the app's cache).
+
+### Staying alive in the background
+- **Android 15's time limit.** A download service of the `dataSync` kind may run about **6 hours in any 24** while the app is in the background; when the budget is used up Android calls the service's `onTimeout` and expects it to stop within seconds. XDM then pauses every running and waiting download (progress is saved, nothing fails), stops the service and posts "Android paused N downloads (background time limit)" with a **Resume** button. Opening XDM starts the clock over and also resumes those downloads by itself; ones you paused yourself stay paused. XDM can't get around this limit: a long queue that needs more than 6 hours in the background will stop and wait for you. It only applies to apps that target Android 15, which XDM does, on devices that run it. If the system refuses to start the service (limit used up, start from the background), XDM posts the same kind of notification instead of crashing.
+- **Battery optimisation.** Many phones (Xiaomi, Samsung, Oppo and others) stop apps that are under battery optimisation. Once you have started a download above 200 MB, or have more than 3 downloads running or queued, a card on the Downloads screen offers to exempt XDM (it can be dismissed). Settings → Background shows the state and opens the system screen; "Background tips" opens the Autostart list on Xiaomi / Redmi / POCO phones and the app's info page elsewhere. The permission for the direct request (`REQUEST_IGNORE_BATTERY_OPTIMIZATIONS`) is declared because XDM isn't distributed on Google Play, which restricts it.
+- **Network changes.** When the default network changes (Wi-Fi to mobile data or back) or drops, the connections of running downloads are aborted at once instead of hanging until the TCP timeout. The segments pick up from their saved offsets; before they do, the file on the server is compared again (size, ETag, Last-Modified), and a file that changed in the meantime is downloaded from zero rather than stitched together. Retries wait while there is no network and don't use up their attempts. With "Wi-Fi only" on, a switch to mobile data parks the downloads as "Waiting for Wi-Fi" and they continue when Wi-Fi is back.
+
+### Save location
+- Settings → **Save location**: the default is `Download/XDM` through MediaStore. "Choose folder…" opens the system folder picker (internal storage, an SD card or any storage provider), keeps the access across restarts and shows the folder's name; "Reset to Download/XDM" goes back.
+- **Sort into subfolders by type** (off by default): Video, Audio, Images, Documents, Archives, Apps, Other, decided by the file extension and then the MIME type. Works in `Download/XDM/<Type>` and inside a chosen folder.
+- If the chosen folder is gone (deleted, card removed, access revoked), the finished file is saved to `Download/XDM` instead, the item says "Saved to Download/XDM: chosen folder unavailable", and the Downloads screen shows a warning until you dismiss it. A file that can't be saved at all is kept, and Retry saves it again.
+- Free space is checked before a download starts, where the partial file lives, and, for a chosen folder on internal storage or an SD card, on that volume too (other storage providers can't be asked, so that check is skipped). XDM doesn't try to warn about FAT32's 4 GiB limit: the file system can't be told reliably.
+- The private folder isn't affected.
+
+### Schedule and speed limit
+- **Schedule** (Settings, off by default): a daily window with a start and end time, which may cross midnight (equal times mean always), and optionally "Only while charging". Outside it queued downloads show as **Scheduled** with the start time, and running ones go back to the queue when the window closes. "Start now" on a download ignores the schedule for that download; "Wi-Fi only" still applies to everything. The service doesn't stay up while only waiting for the window.
+- **Waking up.** At the window start an exact alarm (the one wake-up Android lets start a foreground service from the background) starts the service. Android 13+ needs the "Alarms & reminders" access for exact alarms; Settings → Schedule links to it. Without it, or when the system refuses the start anyway, XDM posts "Scheduled downloads are ready" with a Resume button. Plugging in the charger is only noticed while XDM's process is alive, and then does the same. The alarm is set again after a reboot, an app update, and a change of time or time zone.
+- **Speed limit** (Settings, Off by default): one cap in KB/s or MB/s for everything XDM downloads together, every connection of every kind (plain files, HLS, YouTube). It applies to downloads that are already running, without restarting them. The Downloads screen shows the active limit and the next start time.
+
+### Expired links
+- XDM remembers the page a download came from (the browser tab, or the Referer header). When a download fails with HTTP 403/410, the notification and the details screen offer **Refresh link**, as does the item's menu on a failed or paused download. It opens that page in the built-in browser with a banner "Start the same download again to refresh the link": the next download or grabbed video from the tab is offered as the new link for that item instead of a new item.
+- The new link is accepted only for the same file: its size must match, and if the old download had an ETag and the new one differs, XDM warns and offers "Restart from zero" instead of keeping the progress. On a match the link and the cookies/User-Agent/Referer of the new capture are swapped in, and the download goes on with the segments it has.
+- **Change URL…** in the item's menu does the same with a link you paste. Not for YouTube (it looks its links up again by itself) and not for HLS.
 
 ### Private folder
 - A locked folder for downloads you don't want in the gallery. The lock icon in the Downloads screen opens it.
@@ -103,12 +125,12 @@ Everything here is optional; the build works without it. Put the keys in `privat
 
 ## Project layout
 
-- `engine/`: the download core, plain Kotlin/JVM with no Android APIs. Probing, segment splitting, the multi-connection engine, the M3U8 parser and the HLS engine. Tested against `MockWebServer`.
+- `engine/`: the download core, plain Kotlin/JVM with no Android APIs. Probing, segment splitting, the multi-connection engine, the shared speed limiter, the M3U8 parser and the HLS engine. Tested against `MockWebServer`.
 - `media/`: video detection (URL classification, per-tab collection, probing, HLS quality options).
 - `adblock/` and `adblock/filters/`: the filter engine, list loading, binary cache and updates.
 - `remux/`: MPEG-TS to MP4 and the DASH merger for YouTube.
 - `youtube/`: link parsing, format selection, error messages, the NewPipeExtractor bridge.
-- `core/`: `DownloadManager` (queue, pause/resume, Wi-Fi only, moves into and out of the private folder), storage, network monitor.
+- `core/`: `DownloadManager` (queue, pause/resume, Wi-Fi only, schedule, Android's time limit, link replacement, moves into and out of the private folder), `RunGate` (may this download run now?), storage (`FileSaver`: MediaStore and chosen folders), network and charger monitors.
 - `vault/`: the private folder's storage, PIN hashing, wrong-PIN cooldown and the lock state machine.
 - `data/`: Room and DataStore.
 - `service/`: foreground service and notifications.
@@ -117,16 +139,19 @@ Everything here is optional; the build works without it. Put the keys in `privat
 
 Room schemas are exported to `app/schemas/` and committed. `MigrationTest` runs every migration on a populated database and compares the result with the exported schema. There are no destructive migrations.
 
-CI runs the unit tests, a build and lint, then a smoke test on an emulator. That includes a real YouTube download of *Big Buck Bunny*, which may come back BLOCKED when YouTube rejects the runner's IP, and the private folder self-test: debug builds contain `VaultTestActivity` (`adb shell am start -n com.olaph.xdm/.debug.VaultTestActivity`), which puts a bundled 10 s test video into the private folder, checks MediaStore can't see it, reads its duration and decodes a frame with `MediaMetadataRetriever`, deletes it again and logs one `VAULTTEST PASS …` or `VAULTTEST FAIL …` line.
+CI runs the unit tests, a build and lint, then a smoke test on an emulator. That includes a real YouTube download of *Big Buck Bunny*, which may come back BLOCKED when YouTube rejects the runner's IP, and the private folder self-test: debug builds contain `VaultTestActivity` (`adb shell am start -n com.olaph.xdm/.debug.VaultTestActivity`), which puts a bundled 10 s test video into the private folder, checks MediaStore can't see it, reads its duration and decodes a frame with `MediaMetadataRetriever`, deletes it again and logs one `VAULTTEST PASS …` or `VAULTTEST FAIL …` line. A second self-test, `SaveTestActivity`, saves a small file with "sort by type" on, checks it lands in `Download/XDM/Video`, reads it back byte for byte and deletes it, runs the schedule decision, holds the speed limiter to 256 KB/s for 2 seconds, and logs one `SAVETEST PASS …` or `SAVETEST FAIL …` line (tag `XDM`).
 
 ## Known limitations
 
-- Moving a finished file into `Download/XDM` copies it, so it briefly needs about twice the space.
+- Moving a finished file into `Download/XDM` or a chosen folder copies it, so it briefly needs about twice the space.
 - On Android 15+, downloads interrupted by a reboot wait for a tap on the notification (or for the app to be opened); see "Resume after restart".
+- On Android 15+, the background time limit (about 6 hours in 24) pauses downloads that need longer; see "Staying alive in the background". XDM doesn't use the user-initiated data transfer jobs that Android offers for long transfers.
+- A schedule wake-up can start downloads from the background only with the exact-alarm access (Android 13+) or when XDM is exempt from battery optimisation; otherwise a notification asks for a tap. The charger is only noticed while XDM is running.
+- Refreshing an expired link needs the page it came from, which shares and clipboard links don't have (use "Change URL…" then). A page that signs links per visit may offer a file with another ETag, which means starting over.
 - **Video**: no DRM (by design). Live HLS isn't downloaded. DASH (`.mpd`) outside YouTube is detected but not downloadable yet. `blob:` players only work when the real manifest shows up in network traffic. HLS to MP4 supports H.264/H.265 with AAC/MP3; other codecs keep the `.ts`. Detection is heuristic, so false hits and misses happen.
 - **YouTube**: depends on NewPipeExtractor keeping up with YouTube. No account login, so age-restricted, members-only, paid and private videos can't be downloaded. Live streams, premieres and channels aren't supported. Video comes as H.264 up to 1080p, or AV1 above that; VP9/WebM isn't offered because media3's MP4 muxer rejects it. Audio is always AAC. No subtitles or chapters. Datacenter and VPN IPs often hit the bot check.
 - **Ad blocking**: scriptlets (`+js()`), procedural selectors, `$replace`, `csp`, `removeparam` and similar rules aren't supported and are skipped. Sites that need scriptlets, YouTube's video ads among them, still show ads. `redirect=` blocks instead of serving a stub. Request types are inferred because WebView doesn't report them. Lists use about 27 MB of heap, and the first compile after an install or update takes a few seconds.
-- Saved cookies aren't refreshed, so an expired session means re-adding the download from the browser.
+- Saved cookies aren't refreshed on their own. When a session or link expires, "Refresh link" (or "Change URL…") captures new ones from the browser.
 - **Private folder**: see "How private is it?" above. A move into the folder needs free space for a second copy for a moment. Opening a private file in another app or sharing one lets that app read it (and possibly keep a copy).
 - Browser: `blob:`/`data:` downloads can't be captured, tabs aren't restored after the process is killed, location and camera are always denied.
 

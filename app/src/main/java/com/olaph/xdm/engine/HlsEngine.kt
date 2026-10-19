@@ -15,12 +15,14 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
+import okhttp3.Call
 import okhttp3.OkHttpClient
 import java.io.File
 import java.io.IOException
 import java.io.InputStream
 import java.security.GeneralSecurityException
 import java.security.MessageDigest
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicLong
 import javax.crypto.Cipher
@@ -66,8 +68,21 @@ class HlsEngine(
     private val maxRetries: Int = 5,
     private val backoffMs: (attempt: Int) -> Long = { attempt -> min(30_000L, 1_000L shl (attempt - 1)) },
     private val tickMs: Long = 250,
+    /** The cap shared with every other download (see [SpeedLimiter]). */
+    private val limiter: SpeedLimiter = SpeedLimiter(),
+    /** Suspends while the device has no network. */
+    private val awaitNetwork: suspend () -> Unit = {},
 ) {
     private val http = client.withScopedCookies()
+    private val inFlight = ConcurrentHashMap.newKeySet<Call>()
+    private val interrupts = AtomicInteger()
+
+    /** The default network changed: abort the transfers in flight, each segment is fetched again right away. */
+    fun interruptConnections() {
+        interrupts.incrementAndGet()
+        http.connectionPool.evictAll()
+        inFlight.forEach { it.cancel() }
+    }
 
     private class Job(
         val file: File,
@@ -227,6 +242,7 @@ class HlsEngine(
             currentCoroutineContext().ensureActive()
             val tmp = File(job.file.path + ".tmp")
             var counted = 0L
+            val interruptsBefore = interrupts.get()
             try {
                 return transfer(request, job, tmp, keys) { delta -> counted += delta; inflight.addAndGet(delta) }
             } catch (e: CancellationException) {
@@ -238,9 +254,13 @@ class HlsEngine(
                 if (e.message?.contains("No space left", ignoreCase = true) == true) {
                     throw FatalDownloadException("No space left on device", cause = e)
                 }
-                attempt++
-                if (attempt > maxRetries) throw e
-                delay(backoffMs(attempt))
+                // A transfer we aborted ourselves (network change) is fetched again at once and costs no attempt.
+                if (interrupts.get() == interruptsBefore) {
+                    attempt++
+                    if (attempt > maxRetries) throw e
+                    delay(backoffMs(attempt))
+                }
+                awaitNetwork()
             } finally {
                 inflight.addAndGet(-counted)
                 if (!job.file.exists()) tmp.delete()
@@ -263,40 +283,46 @@ class HlsEngine(
         }
         val range = job.range
         val call = http.newCall(buildRequest(job.url, request.userAgent, range = range?.header(), headers = headersFor(request, job.url)))
-        val written = call.executeAndUse { r ->
-            checkStatus(r.code)
-            val body = r.body ?: throw IOException("Empty response body")
-            val input: InputStream = body.byteStream()
-            var remaining = Long.MAX_VALUE
-            if (range != null) {
-                if (r.code == 200) { // the server ignored Range: skip to the slice ourselves
-                    skipFully(input, range.offset)
-                }
-                remaining = range.length
-            }
-            val buf = ByteArray(BUFFER_SIZE)
-            var size = 0L
-            tmp.parentFile?.mkdirs()
-            tmp.outputStream().use { out ->
-                while (remaining > 0) {
-                    val n = input.read(buf, 0, min(buf.size.toLong(), remaining).toInt())
-                    if (n < 0) break
-                    remaining -= n
-                    val chunk = if (cipher != null) cipher.update(buf, 0, n) else buf.copyOf(n)
-                    if (chunk != null && chunk.isNotEmpty()) { out.write(chunk); size += chunk.size }
-                    count(n.toLong())
-                }
-                if (range != null && remaining > 0) throw IOException("Connection closed early")
-                if (cipher != null) {
-                    val tail = try {
-                        cipher.doFinal()
-                    } catch (e: GeneralSecurityException) {
-                        throw FatalDownloadException("Could not decrypt segment (wrong key or corrupt data)", cause = e)
+        inFlight += call
+        val written = try {
+            call.executeAndUse { r ->
+                checkStatus(r.code)
+                val body = r.body ?: throw IOException("Empty response body")
+                val input: InputStream = body.byteStream()
+                var remaining = Long.MAX_VALUE
+                if (range != null) {
+                    if (r.code == 200) { // the server ignored Range: skip to the slice ourselves
+                        skipFully(input, range.offset)
                     }
-                    if (tail.isNotEmpty()) { out.write(tail); size += tail.size }
+                    remaining = range.length
                 }
+                val buf = ByteArray(BUFFER_SIZE)
+                var size = 0L
+                tmp.parentFile?.mkdirs()
+                tmp.outputStream().use { out ->
+                    while (remaining > 0) {
+                        val n = input.read(buf, 0, min(limiter.maxChunk(buf.size).toLong(), remaining).toInt())
+                        if (n < 0) break
+                        remaining -= n
+                        val chunk = if (cipher != null) cipher.update(buf, 0, n) else buf.copyOf(n)
+                        if (chunk != null && chunk.isNotEmpty()) { out.write(chunk); size += chunk.size }
+                        count(n.toLong())
+                        limiter.acquire(n)
+                    }
+                    if (range != null && remaining > 0) throw IOException("Connection closed early")
+                    if (cipher != null) {
+                        val tail = try {
+                            cipher.doFinal()
+                        } catch (e: GeneralSecurityException) {
+                            throw FatalDownloadException("Could not decrypt segment (wrong key or corrupt data)", cause = e)
+                        }
+                        if (tail.isNotEmpty()) { out.write(tail); size += tail.size }
+                    }
+                }
+                size
             }
-            size
+        } finally {
+            inFlight -= call
         }
         if (written == 0L) throw IOException("Empty segment")
         if (!tmp.renameTo(job.file)) {
@@ -393,6 +419,7 @@ class HlsEngine(
                 attempt++
                 if (attempt > maxRetries) throw e
                 delay(backoffMs(attempt))
+                awaitNetwork()
             }
         }
     }

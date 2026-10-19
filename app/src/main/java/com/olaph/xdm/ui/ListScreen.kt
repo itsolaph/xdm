@@ -31,6 +31,7 @@ import androidx.compose.material.icons.filled.Android
 import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
@@ -86,8 +87,15 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.olaph.xdm.core.BackgroundHelp
+import com.olaph.xdm.core.BatteryAdvice
 import com.olaph.xdm.core.Formatters
+import com.olaph.xdm.core.Hold
+import com.olaph.xdm.core.LinkRefresh
+import com.olaph.xdm.core.RunGate
+import com.olaph.xdm.data.AppSettings
 import com.olaph.xdm.data.DownloadEntity
 import com.olaph.xdm.data.DownloadStatus
 import com.olaph.xdm.engine.MimeTypes
@@ -99,8 +107,15 @@ import com.olaph.xdm.media.MediaFiles
 fun ListScreen(vm: MainViewModel, onOpenDetail: (Long) -> Unit, onOpenSettings: () -> Unit, onOpenPrivate: () -> Unit) {
     val context = LocalContext.current
     val items by vm.items.collectAsStateWithLifecycle()
-    val waitingForWifi by vm.waitingForWifi.collectAsStateWithLifecycle()
+    val queue by vm.queueStatus.collectAsStateWithLifecycle()
+    val settings by vm.settings.collectAsStateWithLifecycle()
     val clipboardOffer by vm.clipboardOffer.collectAsStateWithLifecycle()
+    // The exemption is granted in a system screen: look again every time we are back.
+    var batteryExempt by remember { mutableStateOf(BackgroundHelp.isExempt(context)) }
+    LifecycleResumeEffect(Unit) {
+        batteryExempt = BackgroundHelp.isExempt(context)
+        onPauseOrDispose {}
+    }
     var filter by rememberSaveable { mutableStateOf(Filter.ALL) }
     var pendingDelete by remember { mutableStateOf<DownloadEntity?>(null) }
     var bulkDelete by remember { mutableStateOf<List<DownloadEntity>?>(null) }
@@ -202,6 +217,26 @@ fun ListScreen(vm: MainViewModel, onOpenDetail: (Long) -> Unit, onOpenSettings: 
                     )
                 }
             }
+            limitsLine(settings, queue)?.let { line ->
+                Text(
+                    line,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
+                )
+            }
+            if (settings.saveFolderWarning) {
+                InfoCard(
+                    "The folder you chose for downloads isn't available, so new files go to Download/XDM. Pick another folder in Settings.",
+                    actionLabel = "Settings", onAction = onOpenSettings, onDismiss = vm::dismissFolderWarning,
+                )
+            }
+            if (BatteryAdvice.shouldShowCard(batteryExempt, settings.batteryCardDismissed, items.orEmpty().map { it.entity })) {
+                InfoCard(
+                    "Battery saving can stop long downloads in the background; allowing XDM to ignore it keeps them going.",
+                    actionLabel = "Allow", onAction = { BackgroundHelp.openBatterySettings(context) }, onDismiss = vm::dismissBatteryCard,
+                )
+            }
             when {
                 shown == null -> Unit
                 shown.isEmpty() -> EmptyState(filter)
@@ -212,7 +247,7 @@ fun ListScreen(vm: MainViewModel, onOpenDetail: (Long) -> Unit, onOpenSettings: 
                     items(shown, key = { it.entity.id }) { item ->
                         DownloadRow(
                             item = item,
-                            waitingForWifi = waitingForWifi,
+                            queue = queue,
                             vm = vm,
                             selecting = selecting,
                             checked = item.entity.id in selected,
@@ -323,7 +358,7 @@ fun DeleteDialog(d: DownloadEntity, onDismiss: () -> Unit, onConfirm: (deleteFil
 @Composable
 private fun DownloadRow(
     item: DownloadItem,
-    waitingForWifi: Boolean,
+    queue: QueueStatus,
     vm: MainViewModel,
     selecting: Boolean,
     checked: Boolean,
@@ -369,7 +404,7 @@ private fun DownloadRow(
                 }
                 Text(sizeLine(item), style = MaterialTheme.typography.bodySmall)
                 Text(
-                    statusLine(item, waitingForWifi),
+                    statusLine(item, queue),
                     style = MaterialTheme.typography.bodySmall,
                     color = if (d.status == DownloadStatus.FAILED) MaterialTheme.colorScheme.error
                     else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -455,6 +490,20 @@ fun RowActions(d: DownloadEntity, vm: MainViewModel, onDelete: () -> Unit, onDet
                 leadingIcon = { Icon(Icons.Filled.ContentCopy, null) },
                 onClick = { menu = false; FileActions.copyLink(context, d.url) },
             )
+            if (LinkRefresh.canRefreshFromPage(d)) {
+                DropdownMenuItem(
+                    text = { Text("Refresh link") },
+                    leadingIcon = { Icon(Icons.Filled.Refresh, null) },
+                    onClick = { menu = false; vm.requestLinkRefresh(d.id) },
+                )
+            }
+            if (LinkRefresh.canChangeLink(d)) {
+                DropdownMenuItem(
+                    text = { Text("Change URL…") },
+                    leadingIcon = { Icon(Icons.Filled.Link, null) },
+                    onClick = { menu = false; vm.changeUrlFor.value = d },
+                )
+            }
             DropdownMenuItem(
                 text = { Text("Delete") },
                 leadingIcon = { Icon(Icons.Filled.Delete, null) },
@@ -522,7 +571,39 @@ fun effectiveConnections(d: DownloadEntity): Int =
     if (d.isHls) d.connections
     else if (d.notResumable || (d.totalBytes in 1 until SegmentPlanner.SPLIT_THRESHOLD)) 1 else d.connections
 
-fun statusLine(item: DownloadItem, waitingForWifi: Boolean): String {
+/** The active speed cap and the schedule in one compact line; null when neither is set. */
+fun limitsLine(settings: AppSettings, queue: QueueStatus): String? {
+    val parts = buildList {
+        if (settings.speedLimitBytesPerSec > 0) add("Speed limit ${Formatters.speed(settings.speedLimitBytesPerSec)}")
+        if (settings.scheduleEnabled) {
+            when {
+                queue.hold == Hold.SCHEDULE -> add("Scheduled: starts at ${queue.startsAt ?: RunGate.clock(settings.scheduleStartMinute)}")
+                settings.scheduleStartMinute != settings.scheduleEndMinute ->
+                    add("Schedule ${RunGate.clock(settings.scheduleStartMinute)}–${RunGate.clock(settings.scheduleEndMinute)}")
+                settings.scheduleOnlyCharging -> add("Only while charging")
+            }
+        }
+    }
+    return parts.takeIf { it.isNotEmpty() }?.joinToString(" · ")
+}
+
+@Composable
+private fun InfoCard(text: String, actionLabel: String, onAction: () -> Unit, onDismiss: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer),
+    ) {
+        Column(Modifier.padding(start = 16.dp, end = 8.dp, top = 12.dp, bottom = 4.dp)) {
+            Text(text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onTertiaryContainer)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                TextButton(onClick = onDismiss) { Text("Dismiss") }
+                TextButton(onClick = onAction) { Text(actionLabel) }
+            }
+        }
+    }
+}
+
+fun statusLine(item: DownloadItem, queue: QueueStatus): String {
     val d = item.entity
     val conn = effectiveConnections(d)
     val connText = when {
@@ -543,8 +624,14 @@ fun statusLine(item: DownloadItem, waitingForWifi: Boolean): String {
                 append(" · ").append(connText).append(resumeNote)
             }
         }
-        DownloadStatus.QUEUED -> (if (waitingForWifi) "Waiting for Wi-Fi" else "Queued") + resumeNote
-        DownloadStatus.PAUSED -> "Paused$resumeNote"
+        DownloadStatus.QUEUED -> when (queue.hold) {
+            Hold.WIFI -> "Waiting for Wi-Fi"
+            Hold.SCHEDULE -> "Scheduled" + (queue.startsAt?.let { " · starts at $it" } ?: "")
+            Hold.CHARGING -> "Waiting for the charger"
+            null -> "Queued"
+        } + resumeNote
+        // A pause by the user has no note; Android's time limit leaves its reason there.
+        DownloadStatus.PAUSED -> (d.error ?: "Paused") + resumeNote
         DownloadStatus.COMPLETED -> "Completed" + (d.completedAt?.let { " · ${Formatters.dateTime(it)}" } ?: "") +
             (d.error?.let { "\n$it" } ?: "") // a completed item only carries a non-fatal note
         DownloadStatus.FAILED -> "Failed" + (d.error?.let { ": $it" } ?: "")

@@ -17,6 +17,12 @@ object DownloadKind {
     const val YOUTUBE = "YOUTUBE"
 }
 
+/** Notes stored in [DownloadEntity.error] of a paused download to say who paused it (a user pause leaves it empty). */
+object PauseNote {
+    /** Android stopped the foreground service (dataSync time limit); these resume by themselves when the user is back. */
+    const val SYSTEM_LIMIT = "Paused by Android (background time limit)"
+}
+
 @Entity(tableName = "downloads")
 data class DownloadEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
@@ -51,8 +57,10 @@ data class DownloadEntity(
     val extra: String? = null,
     /** Lives in the private folder (app-internal storage) instead of Download/XDM; only shown behind the lock. */
     @ColumnInfo(defaultValue = "0") val isPrivate: Boolean = false,
-    /** Unused since 0.7.1 (the removed built-in player stored its resume position here); kept so the schema stays at version 5. */
+    /** Unused since 0.7.1 (the removed built-in player stored its resume position here); kept so old databases need no column drop. */
     @ColumnInfo(defaultValue = "0") val playbackPositionMs: Long = 0,
+    /** The page the link came from (browser tab or Referer), so an expired link can be refreshed from there. */
+    val sourcePage: String? = null,
 ) {
     val isHls: Boolean get() = kind == DownloadKind.HLS
     val isYoutube: Boolean get() = kind == DownloadKind.YOUTUBE

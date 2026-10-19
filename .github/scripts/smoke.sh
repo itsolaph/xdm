@@ -2,7 +2,8 @@
 # Emulator smoke test, run by .github/workflows/android.yml (job "smoke") inside
 # reactivecircus/android-emulator-runner. Installs the debug APK, opens the app, taps through
 # every bottom-navigation item it can find, checks dark mode, runs the YouTube end-to-end self-test (debug-only
-# activity; BLOCKED by YouTube is not a failure) and the private folder self-test, then lets monkey poke at it.
+# activity; BLOCKED by YouTube is not a failure), the private folder self-test and the save/schedule/speed-limit
+# self-test, then lets monkey poke at it.
 # Output in $OUT: numbered screenshots, result.txt (PASS/FAIL + reasons), crash.txt if anything died.
 # Usage: smoke.sh <package> <apk>
 set -u
@@ -124,6 +125,24 @@ case "$vt_line" in
   "VAULTTEST PASS"*) note "$vt_line" ;;
   "VAULTTEST FAIL"*) note "$vt_line"; fail=1 ;;
   *) note "VAULTTEST FAIL no result within 90 s"; fail=1 ;;
+esac
+
+# Save location, schedule and speed limit self-test (debug-only SaveTestActivity, no network): saves a file named like a video
+# into Download/XDM/Video through MediaStore, reads it back, deletes it, checks the schedule decision and holds the speed
+# limiter to 256 KB/s for 2 s. Logs one line with tag XDM, which goes into result.txt.
+#   SAVETEST PASS <details>   SAVETEST FAIL <reason>   (or no line within 90 s = FAIL)
+adb shell am start -n "$PKG/.debug.SaveTestActivity" >/dev/null 2>&1
+st_line=""
+st_deadline=$(( $(date +%s) + 90 ))
+while [ "$(date +%s)" -lt "$st_deadline" ]; do
+  st_line=$(adb logcat -d -s XDM:I 2>/dev/null | tr -d '\r' | sed -nE 's/^.*(SAVETEST (PASS|FAIL).*)$/\1/p' | tail -1)
+  [ -n "$st_line" ] && break
+  sleep 2
+done
+case "$st_line" in
+  "SAVETEST PASS"*) note "$st_line" ;;
+  "SAVETEST FAIL"*) note "$st_line"; fail=1 ;;
+  *) note "SAVETEST FAIL no result within 90 s"; fail=1 ;;
 esac
 
 launch </dev/null  # back to the main screen (this also stops the test activity) before the monkey run

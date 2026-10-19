@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
@@ -7,6 +8,12 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Lets the user exempt XDM from battery optimisation (Settings and a card on the downloads screen). XDM is not distributed on Google Play. -->
+    <uses-permission
+        android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"
+        tools:ignore="BatteryLife" />
+    <!-- Exact alarm for the schedule's start: the one wake-up that may start the download service from the background. -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <!-- Without this the package installer refuses APKs opened from XDM -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission
@@ -115,15 +122,23 @@
             android:exported="false"
             android:foregroundServiceType="dataSync" />
 
-        <!-- Both broadcasts come from the system only, so the receiver needs no export. -->
+        <!-- Every broadcast here comes from the system only, so the receiver needs no export. -->
         <receiver
             android:name=".service.RestartReceiver"
             android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED" />
             </intent-filter>
         </receiver>
+
+        <!-- The schedule's alarm: only XDM's own PendingIntent reaches it. -->
+        <receiver
+            android:name=".service.ScheduleReceiver"
+            android:exported="false" />
 
         <provider
             android:name="androidx.core.content.FileProvider"

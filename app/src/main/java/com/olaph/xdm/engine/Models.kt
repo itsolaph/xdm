@@ -81,8 +81,11 @@ interface ProgressStore {
 }
 
 /** Non-retryable failure (4xx, invalid URL, server ignoring Range, disk full...). */
-class FatalDownloadException(message: String, val httpCode: Int = 0, cause: Throwable? = null) :
+open class FatalDownloadException(message: String, val httpCode: Int = 0, cause: Throwable? = null) :
     IOException(message, cause)
+
+/** The server's file is no longer the one the bytes on disk came from (size, ETag or Last-Modified differ). */
+class FileChangedException : FatalDownloadException("The file changed on the server")
 
 /** Retryable HTTP failure (5xx, 408, 429). */
 class HttpStatusException(val httpCode: Int) : IOException("HTTP $httpCode")

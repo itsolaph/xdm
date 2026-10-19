@@ -16,6 +16,7 @@ import com.olaph.xdm.R
 import com.olaph.xdm.core.DownloadNotifier
 import com.olaph.xdm.core.FileSaver
 import com.olaph.xdm.core.Formatters
+import com.olaph.xdm.core.LinkRefresh
 import com.olaph.xdm.core.LiveProgress
 import com.olaph.xdm.data.DownloadEntity
 import com.olaph.xdm.data.DownloadStatus
@@ -42,6 +43,9 @@ class NotificationHelper(
             )
             sys.createNotificationChannel(
                 NotificationChannel(CHANNEL_RESUME, "Resume after restart", NotificationManager.IMPORTANCE_DEFAULT),
+            )
+            sys.createNotificationChannel(
+                NotificationChannel(CHANNEL_ATTENTION, "Paused and scheduled downloads", NotificationManager.IMPORTANCE_DEFAULT),
             )
         }
     }
@@ -84,14 +88,23 @@ class NotificationHelper(
 
     // ---- foreground summary ----
 
-    fun summary(active: Int, queued: Int, bytesPerSecond: Long, waitingForWifi: Boolean): Notification {
+    fun summary(
+        active: Int,
+        queued: Int,
+        bytesPerSecond: Long,
+        waitingForWifi: Boolean,
+        offline: Boolean = false,
+        speedLimit: Long = 0,
+    ): Notification {
         val text = when {
             waitingForWifi -> "Waiting for Wi-Fi"
+            offline -> "Waiting for network"
             active == 0 && queued > 0 -> "$queued queued"
             else -> buildString {
                 append("$active downloading")
                 if (queued > 0) append(" · $queued queued")
                 if (bytesPerSecond > 0) append(" · ${Formatters.speed(bytesPerSecond)}")
+                if (speedLimit > 0) append(" · limit ${Formatters.speed(speedLimit)}")
             }
         }
         return NotificationCompat.Builder(context, CHANNEL_PROGRESS)
@@ -182,6 +195,55 @@ class NotificationHelper(
 
     fun cancelResumePrompt() = nm.cancel(RESUME_PROMPT_ID)
 
+    // ---- Android's time limit, and the schedule ----
+
+    /**
+     * Android ended the background time of the download service and XDM paused [count] downloads. Resume restarts the
+     * service (which resumes exactly these); a tap opens the app, which resumes them as well.
+     */
+    fun showSystemPaused(count: Int) {
+        val title = if (count == 1) "Android paused 1 download (background time limit)" else "Android paused $count downloads (background time limit)"
+        val n = NotificationCompat.Builder(context, CHANNEL_ATTENTION)
+            .setSmallIcon(R.drawable.ic_stat_pause)
+            .setContentTitle(title)
+            .setContentText("Open XDM or tap Resume to continue where they stopped")
+            .setContentIntent(openApp())
+            .setAutoCancel(true)
+            .setCategory(NotificationCompat.CATEGORY_STATUS)
+            .addAction(0, "Resume", action(DownloadService.ACTION_RESUME_SYSTEM_PAUSED, null, SYSTEM_PAUSED_REQUEST))
+            .build()
+        notify(SYSTEM_PAUSED_ID, n)
+    }
+
+    /** The schedule window opened (or the charger was plugged in) but the system would not let XDM start the service. */
+    fun showScheduledReady(count: Int) {
+        val text = if (count == 1) "1 download is waiting to start" else "$count downloads are waiting to start"
+        val n = NotificationCompat.Builder(context, CHANNEL_ATTENTION)
+            .setSmallIcon(R.drawable.ic_stat_pause)
+            .setContentTitle("Scheduled downloads are ready")
+            .setContentText(text)
+            .setContentIntent(openApp())
+            .setAutoCancel(true)
+            .setCategory(NotificationCompat.CATEGORY_STATUS)
+            .addAction(0, "Resume", action(DownloadService.ACTION_RESUME_INTERRUPTED, null, SCHEDULED_READY_REQUEST))
+            .build()
+        notify(SCHEDULED_READY_ID, n)
+    }
+
+    /** Both notices above are obsolete once the service is up. */
+    fun cancelAttention() {
+        nm.cancel(SYSTEM_PAUSED_ID)
+        nm.cancel(SCHEDULED_READY_ID)
+    }
+
+    /** Opens the app on a download whose link expired, which starts the "refresh link" flow in the browser. */
+    private fun refreshLink(id: Long): PendingIntent = PendingIntent.getActivity(
+        context, requestCode(id, 3),
+        Intent(context, MainActivity::class.java).setAction(MainActivity.ACTION_REFRESH_LINK)
+            .putExtra(DownloadService.EXTRA_ID, id).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
+        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+    )
+
     // ---- results (DownloadNotifier) ----
 
     override fun onCompleted(download: DownloadEntity) {
@@ -219,6 +281,7 @@ class NotificationHelper(
             .privacy(download)
             .setAutoCancel(true)
             .addAction(0, "Retry", action(DownloadService.ACTION_RESUME, download.id, requestCode(download.id, 1)))
+            .apply { if (LinkRefresh.offerRefresh(download)) addAction(0, "Refresh link", refreshLink(download.id)) }
             .setCategory(NotificationCompat.CATEGORY_ERROR)
             .build()
         notify(doneId(download.id), n)
@@ -228,12 +291,17 @@ class NotificationHelper(
         const val CHANNEL_PROGRESS = "downloads"
         const val CHANNEL_DONE = "completed"
         const val CHANNEL_RESUME = "resume_after_restart"
+        const val CHANNEL_ATTENTION = "paused_scheduled"
         const val GROUP = "xdm_downloads"
         const val SUMMARY_ID = 1
         const val RESUME_PROMPT_ID = 2
+        const val SYSTEM_PAUSED_ID = 3
+        const val SCHEDULED_READY_ID = 4
         // Per-download request codes are id * 4 + 0..3 (ids start at 1), so -1 never collides.
         private const val RESUME_PROMPT_REQUEST = -1
         private const val PRIVATE_REQUEST = -2
+        private const val SYSTEM_PAUSED_REQUEST = -3
+        private const val SCHEDULED_READY_REQUEST = -4
         fun progressId(id: Long) = 10_000 + (id % 1_000_000).toInt()
         fun doneId(id: Long) = 2_000_000 + (id % 1_000_000).toInt()
     }

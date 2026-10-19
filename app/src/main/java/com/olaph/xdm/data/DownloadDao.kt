@@ -80,6 +80,14 @@ abstract class DownloadDao {
     @Query("SELECT id FROM downloads WHERE isPrivate = 1")
     abstract suspend fun privateIds(): List<Long>
 
+    /** Paused by Android's background time limit (see [PauseNote.SYSTEM_LIMIT]), not by the user. */
+    @Query("SELECT * FROM downloads WHERE status = 'PAUSED' AND error = '${PauseNote.SYSTEM_LIMIT}' ORDER BY id ASC")
+    abstract suspend fun getSystemPaused(): List<DownloadEntity>
+
+    /** A new link for the same file; [sourcePage] only replaces the stored page when given. */
+    @Query("UPDATE downloads SET url = :url, headers = :headers, sourcePage = COALESCE(:sourcePage, sourcePage) WHERE id = :id")
+    abstract suspend fun setLink(id: Long, url: String, headers: String?, sourcePage: String?)
+
     /** HLS progress: finished segments, segments in the playlist, bytes on disk. */
     @Query("UPDATE downloads SET segmentsDone = :done, segmentsTotal = :total, downloadedBytes = :bytes WHERE id = :id")
     abstract suspend fun setHlsProgress(id: Long, done: Int, total: Int, bytes: Long)
@@ -128,7 +136,7 @@ abstract class DownloadDao {
 
 @Database(
     entities = [DownloadEntity::class, SegmentEntity::class, BookmarkEntity::class, HistoryEntity::class],
-    version = 5,
+    version = 6,
     exportSchema = true,
 )
 abstract class XdmDatabase : RoomDatabase() {

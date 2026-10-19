@@ -6,11 +6,14 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.olaph.xdm.adblock.PopupMode
 import com.olaph.xdm.adblock.filters.FilterLists
+import com.olaph.xdm.core.SaveTarget
+import com.olaph.xdm.core.SchedulePlan
 import com.olaph.xdm.engine.SearchEngine
 import com.olaph.xdm.youtube.YoutubeQuality
 import kotlinx.coroutines.flow.Flow
@@ -52,7 +55,25 @@ data class AppSettings(
     /** Default of the "Save to private folder" box in the add sheets. */
     val savePrivateByDefault: Boolean = false,
     val autoLockDelay: AutoLockDelay = AutoLockDelay.IMMEDIATELY,
+    /** Daily download window (minutes since midnight, may cross midnight); see [SchedulePlan]. */
+    val scheduleEnabled: Boolean = false,
+    val scheduleStartMinute: Int = 23 * 60,
+    val scheduleEndMinute: Int = 7 * 60,
+    val scheduleOnlyCharging: Boolean = false,
+    /** Cap on the total download speed in bytes per second; 0 = no limit. */
+    val speedLimitBytesPerSec: Long = 0,
+    /** Tree Uri of the folder chosen with the system picker (an SD card, any storage provider); null = Download/XDM. */
+    val saveTreeUri: String? = null,
+    /** Put finished files into Video / Audio / Images / ... subfolders. */
+    val sortByType: Boolean = false,
+    /** The chosen folder was unavailable when a download finished; the app shows a warning until it is dismissed. */
+    val saveFolderWarning: Boolean = false,
+    /** The "exempt from battery optimisation" card on the downloads screen was dismissed. */
+    val batteryCardDismissed: Boolean = false,
 ) {
+    val schedule: SchedulePlan get() = SchedulePlan(scheduleEnabled, scheduleStartMinute, scheduleEndMinute, scheduleOnlyCharging)
+    val saveTarget: SaveTarget get() = SaveTarget(saveTreeUri, sortByType)
+
     val enabledFilterLists: Set<String> get() = FilterLists.ALL.map { it.id }.filter { it !in disabledFilterLists }.toSet()
 
     companion object {
@@ -87,6 +108,15 @@ class SettingsRepository(private val context: Context) : SettingsSource {
         val resumeAfterRestart = booleanPreferencesKey("resume_after_restart")
         val savePrivateByDefault = booleanPreferencesKey("save_private_by_default")
         val autoLockDelay = stringPreferencesKey("auto_lock_delay")
+        val scheduleEnabled = booleanPreferencesKey("schedule_enabled")
+        val scheduleStartMinute = intPreferencesKey("schedule_start_minute")
+        val scheduleEndMinute = intPreferencesKey("schedule_end_minute")
+        val scheduleOnlyCharging = booleanPreferencesKey("schedule_only_charging")
+        val speedLimit = longPreferencesKey("speed_limit_bytes_per_sec")
+        val saveTreeUri = stringPreferencesKey("save_tree_uri")
+        val sortByType = booleanPreferencesKey("sort_by_type")
+        val saveFolderWarning = booleanPreferencesKey("save_folder_warning")
+        val batteryCardDismissed = booleanPreferencesKey("battery_card_dismissed")
     }
 
     override val flow: Flow<AppSettings> = context.dataStore.data.map { p ->
@@ -108,6 +138,15 @@ class SettingsRepository(private val context: Context) : SettingsSource {
             resumeAfterRestart = p[Keys.resumeAfterRestart] ?: d.resumeAfterRestart,
             savePrivateByDefault = p[Keys.savePrivateByDefault] ?: d.savePrivateByDefault,
             autoLockDelay = p[Keys.autoLockDelay]?.let { runCatching { AutoLockDelay.valueOf(it) }.getOrNull() } ?: d.autoLockDelay,
+            scheduleEnabled = p[Keys.scheduleEnabled] ?: d.scheduleEnabled,
+            scheduleStartMinute = (p[Keys.scheduleStartMinute] ?: d.scheduleStartMinute).coerceIn(0, MINUTES_PER_DAY - 1),
+            scheduleEndMinute = (p[Keys.scheduleEndMinute] ?: d.scheduleEndMinute).coerceIn(0, MINUTES_PER_DAY - 1),
+            scheduleOnlyCharging = p[Keys.scheduleOnlyCharging] ?: d.scheduleOnlyCharging,
+            speedLimitBytesPerSec = (p[Keys.speedLimit] ?: d.speedLimitBytesPerSec).coerceAtLeast(0),
+            saveTreeUri = p[Keys.saveTreeUri]?.takeIf { it.isNotBlank() },
+            sortByType = p[Keys.sortByType] ?: d.sortByType,
+            saveFolderWarning = p[Keys.saveFolderWarning] ?: d.saveFolderWarning,
+            batteryCardDismissed = p[Keys.batteryCardDismissed] ?: d.batteryCardDismissed,
         )
     }
 
@@ -127,6 +166,22 @@ class SettingsRepository(private val context: Context) : SettingsSource {
     suspend fun setResumeAfterRestart(v: Boolean) = context.dataStore.edit { it[Keys.resumeAfterRestart] = v }
     suspend fun setSavePrivateByDefault(v: Boolean) = context.dataStore.edit { it[Keys.savePrivateByDefault] = v }
     suspend fun setAutoLockDelay(v: AutoLockDelay) = context.dataStore.edit { it[Keys.autoLockDelay] = v.name }
+    suspend fun setScheduleEnabled(v: Boolean) = context.dataStore.edit { it[Keys.scheduleEnabled] = v }
+    suspend fun setScheduleWindow(startMinute: Int, endMinute: Int) = context.dataStore.edit {
+        it[Keys.scheduleStartMinute] = startMinute.coerceIn(0, MINUTES_PER_DAY - 1)
+        it[Keys.scheduleEndMinute] = endMinute.coerceIn(0, MINUTES_PER_DAY - 1)
+    }
+    suspend fun setScheduleOnlyCharging(v: Boolean) = context.dataStore.edit { it[Keys.scheduleOnlyCharging] = v }
+    suspend fun setSpeedLimit(bytesPerSec: Long) = context.dataStore.edit { it[Keys.speedLimit] = bytesPerSec.coerceAtLeast(0) }
+    suspend fun setSortByType(v: Boolean) = context.dataStore.edit { it[Keys.sortByType] = v }
+    suspend fun setSaveFolderWarning(v: Boolean) = context.dataStore.edit { it[Keys.saveFolderWarning] = v }
+    suspend fun setBatteryCardDismissed(v: Boolean) = context.dataStore.edit { it[Keys.batteryCardDismissed] = v }
+
+    /** A new folder (or null for Download/XDM) clears a pending "folder unavailable" warning. */
+    suspend fun setSaveTreeUri(uri: String?) = context.dataStore.edit {
+        if (uri == null) it.remove(Keys.saveTreeUri) else it[Keys.saveTreeUri] = uri
+        it[Keys.saveFolderWarning] = false
+    }
 
     suspend fun setFilterListEnabled(id: String, enabled: Boolean) = context.dataStore.edit {
         val current = it[Keys.disabledFilterLists] ?: emptySet()
@@ -137,5 +192,9 @@ class SettingsRepository(private val context: Context) : SettingsSource {
     suspend fun setAdSiteAllowed(site: String, allowed: Boolean) = context.dataStore.edit {
         val current = it[Keys.adAllowedSites] ?: emptySet()
         it[Keys.adAllowedSites] = if (allowed) current + site else current - site
+    }
+
+    private companion object {
+        const val MINUTES_PER_DAY = 24 * 60
     }
 }

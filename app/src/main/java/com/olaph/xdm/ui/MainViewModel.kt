@@ -3,7 +3,9 @@ package com.olaph.xdm.ui
 import android.app.Application
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
 import android.content.IntentSender
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.olaph.xdm.AppContainer
@@ -14,9 +16,13 @@ import com.olaph.xdm.adblock.UpdateState
 import com.olaph.xdm.core.DeleteProgress
 import com.olaph.xdm.core.DeleteReport
 import com.olaph.xdm.core.DeleteTarget
+import com.olaph.xdm.core.Hold
+import com.olaph.xdm.core.LinkCheck
+import com.olaph.xdm.core.LinkRefresh
 import com.olaph.xdm.core.LiveProgress
 import com.olaph.xdm.core.MoveResult
 import com.olaph.xdm.core.PendingDownload
+import com.olaph.xdm.core.RunGate
 import com.olaph.xdm.data.AutoLockDelay
 import com.olaph.xdm.crash.TestReportResult
 import com.olaph.xdm.engine.SearchEngine
@@ -29,9 +35,15 @@ import com.olaph.xdm.engine.UrlUtils
 import com.olaph.xdm.youtube.YoutubeLink
 import com.olaph.xdm.youtube.YoutubeQuality
 import com.olaph.xdm.youtube.YoutubeUrls
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -54,6 +66,26 @@ data class DownloadItem(val entity: DownloadEntity, val live: LiveProgress?) {
     val segmentsDone: Int get() = live?.takeIf { it.segmentsTotal > 0 }?.segmentsDone ?: entity.segmentsDone
     val segmentsTotal: Int get() = live?.segmentsTotal?.takeIf { it > 0 } ?: entity.segmentsTotal
 }
+
+/** What holds the queue back; [startsAt] ("23:00") is set while the schedule does. */
+data class QueueStatus(val hold: Hold?, val startsAt: String?)
+
+/** The folder picked in Settings, as the provider names it; [available] is false when it cannot be used any more. */
+data class SaveFolderInfo(val label: String, val available: Boolean)
+
+/**
+ * A new link for download [id], on its way to being accepted. [check] is the probe compared with the download (null while
+ * it runs); [error] says why the link could not be checked at all.
+ */
+data class ReplacementOffer(
+    val id: Long,
+    val fileName: String,
+    val url: String,
+    val headers: Map<String, String>?,
+    val sourcePage: String?,
+    val check: LinkCheck? = null,
+    val error: String? = null,
+)
 
 enum class Filter(val label: String) {
     ALL("All"), ACTIVE("Active"), COMPLETED("Completed"), FAILED("Failed");
@@ -87,6 +119,12 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
         container.settings.flow.stateIn(viewModelScope, SharingStarted.Eagerly, AppSettings())
 
     val waitingForWifi: StateFlow<Boolean> = manager.waitingForWifi
+
+    /** Why queued downloads are waiting (Wi-Fi, schedule, charger) and, for the schedule, when they start. */
+    val queueStatus: StateFlow<QueueStatus> =
+        combine(manager.hold, settings) { hold, s ->
+            QueueStatus(hold, if (hold == Hold.SCHEDULE) RunGate.clock(s.scheduleStartMinute) else null)
+        }.stateIn(viewModelScope, SharingStarted.Eagerly, QueueStatus(null, null))
 
     fun segments(id: Long): Flow<List<SegmentEntity>> = container.dao.observeSegments(id)
 
@@ -270,6 +308,125 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun setSavePrivateByDefault(v: Boolean) = viewModelScope.launch { container.settings.setSavePrivateByDefault(v) }
     fun setAutoLockDelay(v: AutoLockDelay) = viewModelScope.launch { container.settings.setAutoLockDelay(v) }
+
+    // ---- save location ----
+
+    private val folderRefresh = MutableStateFlow(0)
+
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    val saveFolder: StateFlow<SaveFolderInfo?> =
+        combine(settings.map { it.saveTreeUri }.distinctUntilChanged(), folderRefresh) { uri, _ -> uri }
+            .mapLatest { uri ->
+                uri?.let { withContext(Dispatchers.IO) { SaveFolderInfo(container.fileSaver.folderLabel(it) ?: "Chosen folder", container.fileSaver.folderAvailable(it)) } }
+            }
+            .stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    /** Looks at the chosen folder again (the card may have been put back, the permission taken away). */
+    fun refreshSaveFolder() { folderRefresh.update { it + 1 } }
+
+    /** The picker returned [uri]: keep access across restarts and forget the previous folder. */
+    fun chooseSaveFolder(uri: Uri) {
+        val resolver = getApplication<Application>().contentResolver
+        val previous = settings.value.saveTreeUri
+        val granted = runCatching {
+            resolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
+        }.isSuccess
+        if (!granted) {
+            viewModelScope.launch { _events.send(Event.Message("This folder can't be kept for later. Pick another one.")) }
+            return
+        }
+        viewModelScope.launch {
+            container.settings.setSaveTreeUri(uri.toString())
+            if (previous != null && previous != uri.toString()) releasePermission(previous)
+        }
+    }
+
+    fun resetSaveFolder() {
+        val previous = settings.value.saveTreeUri
+        viewModelScope.launch {
+            container.settings.setSaveTreeUri(null)
+            previous?.let { releasePermission(it) }
+        }
+    }
+
+    private fun releasePermission(treeUri: String) {
+        runCatching {
+            getApplication<Application>().contentResolver.releasePersistableUriPermission(
+                Uri.parse(treeUri), Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION,
+            )
+        }
+    }
+
+    fun setSortByType(v: Boolean) = viewModelScope.launch { container.settings.setSortByType(v) }
+    fun dismissFolderWarning() = viewModelScope.launch { container.settings.setSaveFolderWarning(false) }
+
+    // ---- schedule, speed limit, battery ----
+
+    fun setScheduleEnabled(v: Boolean) = viewModelScope.launch { container.settings.setScheduleEnabled(v) }
+    fun setScheduleWindow(startMinute: Int, endMinute: Int) = viewModelScope.launch { container.settings.setScheduleWindow(startMinute, endMinute) }
+    fun setScheduleOnlyCharging(v: Boolean) = viewModelScope.launch { container.settings.setScheduleOnlyCharging(v) }
+    fun setSpeedLimit(bytesPerSec: Long) = viewModelScope.launch { container.settings.setSpeedLimit(bytesPerSec) }
+    fun dismissBatteryCard() = viewModelScope.launch { container.settings.setBatteryCardDismissed(true) }
+
+    // ---- a new link for a download ----
+
+    /** The download whose page the browser should open to capture a fresh link; consumed by the root screen. */
+    val linkRefreshRequest = MutableStateFlow<DownloadEntity?>(null)
+
+    /** "Refresh link": opens the download's page in the browser in refresh mode (if it can be refreshed from there). */
+    fun requestLinkRefresh(id: Long) {
+        viewModelScope.launch {
+            val d = container.dao.get(id)
+            if (d == null || !LinkRefresh.canRefreshFromPage(d)) {
+                _events.send(Event.Message("This download can't be refreshed from its page."))
+            } else {
+                linkRefreshRequest.value = d
+            }
+        }
+    }
+
+    /** The link dialog ("Change URL…" or a capture from the browser) and the answer to it. */
+    val replacement = MutableStateFlow<ReplacementOffer?>(null)
+
+    /** The id of the download whose "Change URL…" box is open. */
+    val changeUrlFor = MutableStateFlow<DownloadEntity?>(null)
+
+    /** Probes [url] and compares it with download [id]; the result lands in [replacement]. */
+    fun offerReplacement(id: Long, url: String, headers: Map<String, String>? = null, sourcePage: String? = null) {
+        viewModelScope.launch {
+            val d = container.dao.get(id) ?: return@launch
+            val offer = ReplacementOffer(id, d.fileName, url, headers, sourcePage)
+            replacement.value = offer
+            replacement.value = try {
+                offer.copy(check = manager.checkLink(id, url, headers))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                offer.copy(error = e.message ?: "The link could not be reached")
+            }
+        }
+    }
+
+    fun dismissReplacement() { replacement.value = null }
+
+    /** Accepts the link in [replacement]; [restart] throws the old bytes away. Runs in the app scope. */
+    fun confirmReplacement(restart: Boolean) {
+        val offer = replacement.value ?: return
+        val check = offer.check ?: return
+        replacement.value = null
+        container.scope.launch {
+            val ok = manager.replaceLink(offer.id, offer.url, check.probe, offer.headers, offer.sourcePage, restart)
+            _events.send(
+                Event.Message(
+                    when {
+                        !ok -> "The link could not be replaced."
+                        restart -> "Link replaced. The download starts over."
+                        else -> "Link replaced. The download continues."
+                    },
+                ),
+            )
+        }
+    }
 
     fun setConnections(v: Int) = viewModelScope.launch { container.settings.setConnections(v) }
     fun setMaxParallel(v: Int) = viewModelScope.launch { container.settings.setMaxParallel(v) }

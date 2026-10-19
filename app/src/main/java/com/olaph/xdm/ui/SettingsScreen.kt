@@ -123,6 +123,18 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit) {
             }
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
 
+            SaveLocationSettings(vm, settings)
+            HorizontalDivider(Modifier.padding(vertical = 8.dp))
+
+            ScheduleSettings(vm, settings)
+            HorizontalDivider(Modifier.padding(vertical = 8.dp))
+
+            SpeedLimitSettings(vm, settings)
+            HorizontalDivider(Modifier.padding(vertical = 8.dp))
+
+            BackgroundSettings()
+            HorizontalDivider(Modifier.padding(vertical = 8.dp))
+
             Text("Private folder", style = MaterialTheme.typography.titleMedium)
             Row(
                 Modifier.fillMaxWidth().clickable { vm.setSavePrivateByDefault(!settings.savePrivateByDefault) }.padding(vertical = 8.dp),
