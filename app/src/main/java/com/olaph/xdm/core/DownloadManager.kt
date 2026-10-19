@@ -45,6 +45,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -94,6 +95,13 @@ sealed interface MoveResult {
 
 /** A candidate replacement link, probed and compared with the download it is meant for. */
 class LinkCheck(val probe: ProbeResult, val verdict: LinkMatch.Verdict)
+
+/** Result of [DownloadManager.applyRefreshedLink]. */
+sealed interface AppliedLink {
+    data object Replaced : AppliedLink
+    data object Failed : AppliedLink
+    class NeedsAnswer(val check: LinkCheck) : AppliedLink
+}
 
 /** Live (non-persisted) numbers for a running download. */
 data class LiveProgress(
@@ -151,6 +159,8 @@ class DownloadManager(
     private val timeOfDay: () -> LocalTime = { LocalTime.now() },
     /** Free bytes on the volume of a custom save folder; null = not known (or no custom folder). */
     private val targetFreeSpace: () -> Long? = { null },
+    /** The folder a new file of that name would be saved into (blocking); null = not known. For the duplicate check. */
+    private val plannedFolder: (String) -> String? = { null },
 ) {
     /** NETWORK and SCHEDULE put the item back in the queue, SYSTEM pauses it with a note so it can resume by itself. */
     private enum class StopReason { PAUSE, CANCEL, DELETE, NETWORK, SCHEDULE, SYSTEM, REQUEUE }
@@ -187,6 +197,12 @@ class DownloadManager(
      * downloads just start.
      */
     @Volatile var onScheduleReady: (() -> Unit)? = null
+
+    /**
+     * Asked first when a download fails (with the stored error): true = someone deals with it and announces the outcome
+     * themselves, so no failure notification is posted here.
+     */
+    @Volatile var interceptFailure: (suspend (DownloadEntity) -> Boolean)? = null
 
     private val _queueReleased = MutableStateFlow(!holdQueue)
     val queueReleased: StateFlow<Boolean> = _queueReleased
@@ -310,15 +326,44 @@ class DownloadManager(
         return id
     }
 
+    private fun youtubeFileName(plan: YtPlan, title: String): String {
+        val ext = if (plan.mode == YtPlan.Mode.AUDIO) "m4a" else "mp4"
+        val label = plan.label.ifEmpty { plan.quality?.takeIf { it.height > 0 }?.let { "${it.height}p" }.orEmpty() }
+        return FormatSelector.fileName(title, label, ext)
+    }
+
+    // ---- duplicates ----
+
+    /** What [addYoutube] would add, for [findDuplicates]. */
+    fun youtubeCandidate(plan: YtPlan, title: String, isPrivate: Boolean = false) = DuplicateCandidate(
+        url = YoutubeUrls.watchUrl(plan.videoId),
+        fileName = youtubeFileName(plan, title),
+        totalBytes = plan.totalBytes,
+        isPrivate = isPrivate,
+        extra = plan.encode(),
+        anyQuality = !plan.hasStreams,
+    )
+
+    /** The existing download that [candidate] would repeat, if any. Call before [add] / [addYoutube]. */
+    suspend fun findDuplicate(candidate: DuplicateCandidate): DuplicateMatch? = findDuplicates(listOf(candidate)).single()
+
+    /** One entry per candidate, null = not in the list yet (see [DuplicateCheck]). */
+    suspend fun findDuplicates(candidates: List<DuplicateCandidate>): List<DuplicateMatch?> {
+        if (candidates.all { it.isPrivate }) return candidates.map { null }
+        val existing = dao.observeAll().first()
+        return withContext(Dispatchers.IO) {
+            val check = DuplicateCheck(fileSaver::exists, plannedFolder)
+            candidates.map { check.find(it, existing) }
+        }
+    }
+
     /**
      * Queues a YouTube video. [plan] says which streams (or, for a playlist entry, which quality) to use; the
      * streams are looked up again when the download starts, so nothing here depends on an URL that could expire.
      * [title] and [quality] only name the item until then.
      */
     suspend fun addYoutube(plan: YtPlan, title: String, startNow: Boolean, connections: Int, isPrivate: Boolean = false): Long {
-        val ext = if (plan.mode == YtPlan.Mode.AUDIO) "m4a" else "mp4"
-        val label = plan.label.ifEmpty { plan.quality?.takeIf { it.height > 0 }?.let { "${it.height}p" }.orEmpty() }
-        val name = FormatSelector.fileName(title, label, ext)
+        val name = youtubeFileName(plan, title)
         return pumpMutex.withLock {
             val newId = dao.insert(
                 DownloadEntity(
@@ -412,7 +457,24 @@ class DownloadManager(
     suspend fun checkLink(id: Long, url: String, headers: Map<String, String>? = null): LinkCheck {
         val d = dao.get(id) ?: throw FatalDownloadException("The download is gone")
         val probe = engine.prober.probe(url.trim(), settings.current().userAgent, headers ?: HeaderCodec.decode(d.headers))
+        return judgeLink(id, probe)
+    }
+
+    /** Compares an already made [probe] with download [id] (the browser probes candidates itself). */
+    suspend fun judgeLink(id: Long, probe: ProbeResult): LinkCheck {
+        val d = dao.get(id) ?: throw FatalDownloadException("The download is gone")
         return LinkCheck(probe, LinkMatch.decide(d.totalBytes, d.etag, probe.contentLength, probe.etag))
+    }
+
+    /**
+     * A link of the right size was found and already probed: swaps it in and carries on from the bytes on disk. Only a
+     * file that is the same as far as the server tells ([LinkMatch.Verdict.Same]) is taken without asking; otherwise
+     * [AppliedLink.NeedsAnswer] hands back the comparison for the user to decide.
+     */
+    suspend fun applyRefreshedLink(id: Long, url: String, probe: ProbeResult, headers: Map<String, String>?, sourcePage: String?): AppliedLink {
+        val check = judgeLink(id, probe)
+        if (check.verdict !is LinkMatch.Verdict.Same) return AppliedLink.NeedsAnswer(check)
+        return if (replaceLink(id, url, probe, headers, sourcePage)) AppliedLink.Replaced else AppliedLink.Failed
     }
 
     /**
@@ -730,7 +792,14 @@ class DownloadManager(
                     dao.requeue(id)
                 } else {
                     dao.setStatus(id, DownloadStatus.FAILED, describe(e))
-                    dao.get(id)?.let { notifier.onFailed(it) }
+                    dao.get(id)?.let { failed ->
+                        val handled = try {
+                            interceptFailure?.invoke(failed) == true
+                        } catch (_: Exception) {
+                            false
+                        }
+                        if (!handled) notifier.onFailed(failed)
+                    }
                 }
             }
         } finally {

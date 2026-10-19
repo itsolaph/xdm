@@ -73,6 +73,7 @@ class MainActivity : FragmentActivity() {
     private fun handle(intent: Intent?) {
         when (intent?.action) {
             ACTION_OPEN_PRIVATE -> vm.openPrivateRequest.value = true
+            ACTION_OPEN_DOWNLOAD -> intent.getLongExtra(DownloadService.EXTRA_ID, -1).takeIf { it > 0 }?.let { vm.openDownload(it) }
             ACTION_REFRESH_LINK -> intent.getLongExtra(DownloadService.EXTRA_ID, -1).takeIf { it > 0 }?.let { vm.requestLinkRefresh(it) }
         }
     }
@@ -80,6 +81,9 @@ class MainActivity : FragmentActivity() {
     companion object {
         /** From a private download's notification: show the private folder (which asks for the PIN). */
         const val ACTION_OPEN_PRIVATE = "com.olaph.xdm.OPEN_PRIVATE"
+
+        /** From the share sheet's duplicate dialog: show the details of the download that is already in the list. */
+        const val ACTION_OPEN_DOWNLOAD = "com.olaph.xdm.OPEN_DOWNLOAD"
 
         /** From a failed download's notification: open its page in the browser to capture a fresh link. */
         const val ACTION_REFRESH_LINK = "com.olaph.xdm.REFRESH_LINK"
@@ -131,19 +135,33 @@ fun XdmRoot(vm: MainViewModel, browser: BrowserViewModel) {
             }
         }
 
+        val openDownload by vm.openDownloadRequest.collectAsStateWithLifecycle()
+        LaunchedEffect(openDownload) {
+            val id = openDownload ?: return@LaunchedEffect
+            vm.openDownloadRequest.value = null
+            detailId = id
+            backRoute = ROUTE_LIST
+            route = ROUTE_DETAIL
+        }
+
         // Downloads started in the browser open the same add sheet as every other entry point.
         DisposableEffect(browser) {
             browser.downloadHandler = { vm.openAddSheet(it) }
             onDispose { browser.downloadHandler = null }
         }
 
-        // "Refresh link": the browser opens the download's page; what it captures next is offered as the new link.
+        // "Refresh link": the browser opens the download's page; a file of the same size becomes the new link by itself,
+        // anything the user picks is offered as one.
         DisposableEffect(browser) {
             browser.refreshHandler = { id, capture ->
                 vm.offerReplacement(id, capture.url, capture.headers, capture.pageUrl)
                 route = ROUTE_LIST
             }
-            onDispose { browser.refreshHandler = null }
+            browser.autoRefreshHandler = { id, capture, probe ->
+                vm.applyRefreshedLink(id, capture.url, capture.headers, capture.pageUrl, probe)
+                route = ROUTE_LIST
+            }
+            onDispose { browser.refreshHandler = null; browser.autoRefreshHandler = null }
         }
         val refreshRequest by vm.linkRefreshRequest.collectAsStateWithLifecycle()
         LaunchedEffect(refreshRequest) {
@@ -227,6 +245,7 @@ fun XdmRoot(vm: MainViewModel, browser: BrowserViewModel) {
                 onDismiss = vm::closeAddSheet,
                 onAdded = vm::closeAddSheet,
                 onYoutube = vm::openYoutube,
+                onOpenExisting = vm::openDownload,
             )
         }
 
@@ -250,6 +269,7 @@ fun XdmRoot(vm: MainViewModel, browser: BrowserViewModel) {
                     vm.closeYoutube()
                     Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
                 },
+                onOpenExisting = vm::openDownload,
             )
         }
     }

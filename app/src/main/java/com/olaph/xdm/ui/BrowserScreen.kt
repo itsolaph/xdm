@@ -169,7 +169,7 @@ private fun BrowserTabPage(vm: BrowserViewModel, tab: BrowserTab, onOpenSettings
         if (result == SnackbarResult.ActionPerformed) vm.openNotice(notice) else vm.dismissNotice(notice)
     }
     Column(Modifier.fillMaxSize()) {
-        vm.refreshTarget?.let { RefreshBanner(it.fileName, onCancel = vm::cancelRefresh) }
+        vm.refreshTarget?.let { RefreshBanner(it.fileName, it.canAutoMatch, vm.refreshSlow, onCancel = vm::cancelRefresh) }
         AddressBar(
             tab = tab,
             onSubmit = vm::load,
@@ -201,14 +201,26 @@ private fun BrowserTabPage(vm: BrowserViewModel, tab: BrowserTab, onOpenSettings
     vm.linkMenu?.let { LinkMenu(vm, it) }
 }
 
-/** Shown while the browser waits for the same download to be started again, to replace an expired link. */
+/**
+ * Shown while the browser looks for a new link for a download. With a known size the page's files are checked by
+ * themselves; without one, or when that finds nothing, the user starts the same download again.
+ */
 @Composable
-private fun RefreshBanner(fileName: String, onCancel: () -> Unit) {
+private fun RefreshBanner(fileName: String, automatic: Boolean, slow: Boolean, onCancel: () -> Unit) {
     Surface(color = MaterialTheme.colorScheme.tertiaryContainer, contentColor = MaterialTheme.colorScheme.onTertiaryContainer) {
         Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 4.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text("Start the same download again to refresh the link", style = MaterialTheme.typography.bodyMedium)
-                Text(fileName, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(
+                    when {
+                        !automatic -> "Start the same download again to refresh the link"
+                        slow -> "No matching link yet. Tap play on the video, or start the same download again."
+                        else -> "Looking for a new link for $fileName... If nothing happens, tap play on the video."
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (!automatic || slow) Text(fileName, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             TextButton(onClick = onCancel) { Text("Cancel") }
         }

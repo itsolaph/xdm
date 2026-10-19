@@ -70,6 +70,8 @@ data class AppSettings(
     val saveFolderWarning: Boolean = false,
     /** The "exempt from battery optimisation" card on the downloads screen was dismissed. */
     val batteryCardDismissed: Boolean = false,
+    /** A plain download that fails with an expired link (HTTP 403/410) gets a new one from its page, in the background. */
+    val autoRefreshLinks: Boolean = true,
 ) {
     val schedule: SchedulePlan get() = SchedulePlan(scheduleEnabled, scheduleStartMinute, scheduleEndMinute, scheduleOnlyCharging)
     val saveTarget: SaveTarget get() = SaveTarget(saveTreeUri, sortByType)
@@ -117,6 +119,7 @@ class SettingsRepository(private val context: Context) : SettingsSource {
         val sortByType = booleanPreferencesKey("sort_by_type")
         val saveFolderWarning = booleanPreferencesKey("save_folder_warning")
         val batteryCardDismissed = booleanPreferencesKey("battery_card_dismissed")
+        val autoRefreshLinks = booleanPreferencesKey("auto_refresh_links")
     }
 
     override val flow: Flow<AppSettings> = context.dataStore.data.map { p ->
@@ -147,6 +150,7 @@ class SettingsRepository(private val context: Context) : SettingsSource {
             sortByType = p[Keys.sortByType] ?: d.sortByType,
             saveFolderWarning = p[Keys.saveFolderWarning] ?: d.saveFolderWarning,
             batteryCardDismissed = p[Keys.batteryCardDismissed] ?: d.batteryCardDismissed,
+            autoRefreshLinks = p[Keys.autoRefreshLinks] ?: d.autoRefreshLinks,
         )
     }
 
@@ -176,6 +180,7 @@ class SettingsRepository(private val context: Context) : SettingsSource {
     suspend fun setSortByType(v: Boolean) = context.dataStore.edit { it[Keys.sortByType] = v }
     suspend fun setSaveFolderWarning(v: Boolean) = context.dataStore.edit { it[Keys.saveFolderWarning] = v }
     suspend fun setBatteryCardDismissed(v: Boolean) = context.dataStore.edit { it[Keys.batteryCardDismissed] = v }
+    suspend fun setAutoRefreshLinks(v: Boolean) = context.dataStore.edit { it[Keys.autoRefreshLinks] = v }
 
     /** A new folder (or null for Download/XDM) clears a pending "folder unavailable" warning. */
     suspend fun setSaveTreeUri(uri: String?) = context.dataStore.edit {

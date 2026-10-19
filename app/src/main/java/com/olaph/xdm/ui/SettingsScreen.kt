@@ -224,6 +224,21 @@ fun SettingsScreen(vm: MainViewModel, onBack: () -> Unit) {
                 }
                 Switch(checked = settings.convertHlsToMp4, onCheckedChange = vm::setConvertHlsToMp4)
             }
+            Row(
+                Modifier.fillMaxWidth().clickable { vm.setAutoRefreshLinks(!settings.autoRefreshLinks) }.padding(vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("Refresh expired links automatically", style = MaterialTheme.typography.titleSmall)
+                    Text(
+                        "When a download fails with HTTP 403 or 410, XDM opens its page in the background and takes over a file of exactly " +
+                            "the same size. Not for private downloads, HLS or YouTube.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Switch(checked = settings.autoRefreshLinks, onCheckedChange = vm::setAutoRefreshLinks)
+            }
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
 
             Text("Default YouTube quality", style = MaterialTheme.typography.titleSmall)

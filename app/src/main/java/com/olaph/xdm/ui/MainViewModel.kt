@@ -13,6 +13,7 @@ import com.olaph.xdm.XdmApp
 import com.olaph.xdm.adblock.FilterListsInfo
 import com.olaph.xdm.adblock.PopupMode
 import com.olaph.xdm.adblock.UpdateState
+import com.olaph.xdm.core.AppliedLink
 import com.olaph.xdm.core.DeleteProgress
 import com.olaph.xdm.core.DeleteReport
 import com.olaph.xdm.core.DeleteTarget
@@ -31,6 +32,7 @@ import com.olaph.xdm.data.DownloadEntity
 import com.olaph.xdm.data.DownloadStatus
 import com.olaph.xdm.data.SegmentEntity
 import com.olaph.xdm.data.ThemeMode
+import com.olaph.xdm.engine.ProbeResult
 import com.olaph.xdm.engine.UrlUtils
 import com.olaph.xdm.youtube.YoutubeLink
 import com.olaph.xdm.youtube.YoutubeQuality
@@ -370,6 +372,16 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---- a new link for a download ----
 
+    /** The download whose details the root screen should show ("Open existing" in the duplicate dialog). */
+    val openDownloadRequest = MutableStateFlow<Long?>(null)
+
+    /** Public downloads only: the private folder's items are never reachable by id from outside its lock. */
+    fun openDownload(id: Long) {
+        viewModelScope.launch {
+            if (container.dao.get(id)?.isPrivate == false) openDownloadRequest.value = id
+        }
+    }
+
     /** The download whose page the browser should open to capture a fresh link; consumed by the root screen. */
     val linkRefreshRequest = MutableStateFlow<DownloadEntity?>(null)
 
@@ -409,6 +421,23 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
 
     fun dismissReplacement() { replacement.value = null }
 
+    /**
+     * The browser found a link of exactly the download's size and already probed it: swap it in and carry on from the
+     * bytes on disk. Only an unchanged ETag skips the dialog; if the server says the file changed, the user decides.
+     */
+    fun applyRefreshedLink(id: Long, url: String, headers: Map<String, String>?, sourcePage: String?, probe: ProbeResult) {
+        container.scope.launch {
+            val d = container.dao.get(id) ?: return@launch
+            when (val r = manager.applyRefreshedLink(id, url, probe, headers, sourcePage)) {
+                is AppliedLink.NeedsAnswer -> replacement.value = ReplacementOffer(id, d.fileName, url, headers, sourcePage, r.check)
+                AppliedLink.Replaced -> withContext(Dispatchers.Main) {
+                    android.widget.Toast.makeText(getApplication(), "Link refreshed, resuming", android.widget.Toast.LENGTH_SHORT).show()
+                }
+                AppliedLink.Failed -> _events.send(Event.Message("The link could not be replaced."))
+            }
+        }
+    }
+
     /** Accepts the link in [replacement]; [restart] throws the old bytes away. Runs in the app scope. */
     fun confirmReplacement(restart: Boolean) {
         val offer = replacement.value ?: return
@@ -437,6 +466,7 @@ class MainViewModel(app: Application) : AndroidViewModel(app) {
     fun setSearchEngine(v: SearchEngine) = viewModelScope.launch { container.settings.setSearchEngine(v) }
     fun setInterceptDownloads(v: Boolean) = viewModelScope.launch { container.settings.setInterceptDownloads(v) }
     fun setConvertHlsToMp4(v: Boolean) = viewModelScope.launch { container.settings.setConvertHlsToMp4(v) }
+    fun setAutoRefreshLinks(v: Boolean) = viewModelScope.launch { container.settings.setAutoRefreshLinks(v) }
     fun setYoutubeQuality(v: YoutubeQuality) = viewModelScope.launch { container.settings.setYoutubeQuality(v) }
 
     // ---- crash reports ----

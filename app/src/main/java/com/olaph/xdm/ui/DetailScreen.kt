@@ -102,7 +102,7 @@ fun DetailScreen(vm: MainViewModel, id: Long, onBack: () -> Unit) {
             )
             if (LinkRefresh.offerRefresh(d)) {
                 Text(
-                    "The server refused the link, which usually means it expired. Open the page it came from and start the same download again to get a fresh one.",
+                    "The server refused the link, which usually means it expired. XDM can open the page it came from and pick up a fresh one.",
                     style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.padding(top = 8.dp),
                 )

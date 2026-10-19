@@ -45,6 +45,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.olaph.xdm.AppContainer
+import android.widget.Toast
+import com.olaph.xdm.core.DuplicateCandidate
+import com.olaph.xdm.core.DuplicateMatch
 import com.olaph.xdm.core.Formatters
 import com.olaph.xdm.core.PendingDownload
 import com.olaph.xdm.data.DownloadKind
@@ -81,6 +84,8 @@ fun AddDownloadSheet(
     onAdded: () -> Unit,
     /** A pasted or typed YouTube link is handed over instead of being probed as a file. */
     onYoutube: (YoutubeLink) -> Unit = {},
+    /** "Open existing" in the duplicate dialog: show download [id] (the caller closes the sheet afterwards). */
+    onOpenExisting: (Long) -> Unit = {},
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -129,19 +134,56 @@ fun AddDownloadSheet(
         }
     }
 
+    // A download that looks like one already in the list waits here for the user's answer.
+    var duplicate by remember { mutableStateOf<Pair<DuplicateMatch, Boolean>?>(null) }
+
+    suspend fun addNow(startNow: Boolean) {
+        val result = (probe as? ProbeState.Done)?.result
+        val name = fileName.ifBlank { result?.fileName ?: FilenameUtils.resolve(null, trimmed, null) }
+        container.manager.add(
+            trimmed, name, connections, startNow, result, headers,
+            kind = if (hls) DownloadKind.HLS else DownloadKind.HTTP,
+            isPrivate = savePrivate && privateAvailable,
+        )
+        onAdded()
+    }
+
     fun submit(startNow: Boolean) {
         if (adding || !validUrl) return
         adding = true
         scope.launch {
             val result = (probe as? ProbeState.Done)?.result
             val name = fileName.ifBlank { result?.fileName ?: FilenameUtils.resolve(null, trimmed, null) }
-            container.manager.add(
-                trimmed, name, connections, startNow, result, headers,
-                kind = if (hls) DownloadKind.HLS else DownloadKind.HTTP,
-                isPrivate = savePrivate && privateAvailable,
-            )
-            onAdded()
+            // A playlist's size is only an estimate: it says nothing about which file it is.
+            val size = if (hls) -1L else result?.contentLength ?: prefill?.contentLength?.takeIf { trimmed == prefill.url } ?: -1L
+            val match = container.manager.findDuplicate(DuplicateCandidate(trimmed, name, size, isPrivate = savePrivate && privateAvailable))
+            if (match == null) {
+                addNow(startNow)
+            } else {
+                duplicate = match to startNow
+                adding = false
+            }
         }
+    }
+
+    duplicate?.let { (match, startNow) ->
+        val appContext = context.applicationContext
+        DuplicateDialog(
+            match = match,
+            onResume = {
+                duplicate = null
+                container.manager.resume(match.existing.id)
+                Toast.makeText(appContext, "Resuming ${match.existing.fileName}", Toast.LENGTH_SHORT).show()
+                onDismiss()
+            },
+            onOpen = { duplicate = null; onOpenExisting(match.existing.id); onDismiss() },
+            onAddAgain = {
+                duplicate = null
+                adding = true
+                scope.launch { addNow(startNow) }
+            },
+            onCancel = { duplicate = null },
+        )
     }
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {

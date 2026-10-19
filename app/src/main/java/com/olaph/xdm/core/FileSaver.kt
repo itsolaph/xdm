@@ -32,6 +32,8 @@ interface FileStore {
     fun delete(location: String): DeleteStatus
     /** Blocking; reads a saved file. Throws if it is gone or unreadable. */
     fun open(location: String): InputStream
+    /** Blocking; is the saved file still there? */
+    fun exists(location: String): Boolean = runCatching { open(location).use { true } }.getOrDefault(false)
 }
 
 enum class DeleteStatus {
@@ -213,6 +215,14 @@ class FileSaver(
         }.getOrNull()
     }
 
+    /** The folder (as shown in a saved item's path) a new file called [fileName] would be saved into. Blocking. */
+    fun plannedFolder(fileName: String): String {
+        val t = target()
+        val category = if (t.sortByType) FileCategory.of(fileName, null) else null
+        val tree = t.treeUri ?: return relativePath(category)
+        return (folderLabel(tree) ?: "Chosen folder") + category?.let { "/${it.folder}" }.orEmpty()
+    }
+
     /** Is the chosen folder still usable (permission kept, storage present)? */
     fun folderAvailable(treeUri: String): Boolean = treeUsable(Uri.parse(treeUri))
 
@@ -235,7 +245,7 @@ class FileSaver(
         if (location.startsWith("content://")) Uri.parse(location)
         else FileProvider.getUriForFile(context, authority, File(location))
 
-    fun exists(location: String): Boolean = runCatching {
+    override fun exists(location: String): Boolean = runCatching {
         when {
             isDocument(location) -> displayName(Uri.parse(location)) != null
             location.startsWith("content://") ->

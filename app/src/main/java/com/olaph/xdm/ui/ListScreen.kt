@@ -440,7 +440,11 @@ fun RowActions(d: DownloadEntity, vm: MainViewModel, onDelete: () -> Unit, onDet
         DownloadStatus.PAUSED ->
             IconButton(onClick = { vm.resume(d.id) }) { Icon(Icons.Filled.PlayArrow, "Resume") }
         DownloadStatus.FAILED, DownloadStatus.CANCELLED ->
-            IconButton(onClick = { vm.retry(d.id) }) { Icon(Icons.Filled.Refresh, "Retry") }
+            if (LinkRefresh.retryRefreshesLink(d)) {
+                IconButton(onClick = { vm.requestLinkRefresh(d.id) }) { Icon(Icons.Filled.Refresh, "Refresh link") }
+            } else {
+                IconButton(onClick = { vm.retry(d.id) }) { Icon(Icons.Filled.Refresh, "Retry") }
+            }
         DownloadStatus.COMPLETED ->
             IconButton(onClick = { vm.open(context, d) }) { Icon(Icons.AutoMirrored.Filled.OpenInNew, "Open") }
     }
@@ -490,6 +494,13 @@ fun RowActions(d: DownloadEntity, vm: MainViewModel, onDelete: () -> Unit, onDet
                 leadingIcon = { Icon(Icons.Filled.ContentCopy, null) },
                 onClick = { menu = false; FileActions.copyLink(context, d.url) },
             )
+            if (LinkRefresh.retryRefreshesLink(d)) {
+                DropdownMenuItem(
+                    text = { Text("Retry with the same link") },
+                    leadingIcon = { Icon(Icons.Filled.PlayArrow, null) },
+                    onClick = { menu = false; vm.retry(d.id) },
+                )
+            }
             if (LinkRefresh.canRefreshFromPage(d)) {
                 DropdownMenuItem(
                     text = { Text("Refresh link") },

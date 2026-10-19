@@ -42,13 +42,17 @@ import com.olaph.xdm.adblock.PopupMode
 import com.olaph.xdm.adblock.RequestAction
 import com.olaph.xdm.adblock.filters.PageContext
 import com.olaph.xdm.adblock.filters.RequestTypeInference
+import com.olaph.xdm.core.LinkRefresh
 import com.olaph.xdm.core.PendingDownload
+import com.olaph.xdm.core.RefreshMatcher
+import com.olaph.xdm.core.RefreshTarget
 import com.olaph.xdm.data.AppSettings
 import com.olaph.xdm.data.BookmarkEntity
 import com.olaph.xdm.data.DownloadEntity
 import com.olaph.xdm.data.HistoryEntity
 import com.olaph.xdm.engine.DownloadHeaders
 import com.olaph.xdm.engine.FilenameUtils
+import com.olaph.xdm.engine.ProbeResult
 import com.olaph.xdm.engine.UrlInput
 import com.olaph.xdm.engine.UrlUtils
 import com.olaph.xdm.engine.UserAgents
@@ -126,26 +130,47 @@ class BrowserViewModel(app: Application) : AndroidViewModel(app) {
     var youtubeHandler: ((YoutubeLink) -> Unit)? = null
 
     /** The download whose expired link the browser is waiting to replace; set while "refresh mode" is on. */
-    class RefreshTarget(val downloadId: Long, val fileName: String)
-
     var refreshTarget by mutableStateOf<RefreshTarget?>(null)
         private set
 
-    /** Gets the capture made in refresh mode instead of the add sheet (set by the main screen). */
+    /** No exact match has turned up for a while; the banner then points at the manual way. */
+    var refreshSlow by mutableStateOf(false)
+        private set
+
+    private var refreshTabId = -1
+    private var refreshMatcher: RefreshMatcher? = null
+
+    /** Gets the capture the user picked in refresh mode instead of the add sheet (set by the main screen). */
     var refreshHandler: ((downloadId: Long, capture: PendingDownload) -> Unit)? = null
 
-    /** Opens the page [download] came from, and treats the next download started there as its new link. */
+    /** Gets the candidate that matched the waiting download's size exactly, with the probe that proved it. */
+    var autoRefreshHandler: ((downloadId: Long, capture: PendingDownload, probe: ProbeResult) -> Unit)? = null
+
+    /**
+     * Opens the page [download] came from in refresh mode: every file the page requests is checked in the background,
+     * and the first one of exactly the download's size becomes its new link.
+     */
     fun startRefresh(download: DownloadEntity) {
-        val page = download.sourcePage ?: return
-        refreshTarget = RefreshTarget(download.id, download.fileName)
-        newTab(page)
+        val page = LinkRefresh.refreshPage(download) ?: return
+        endRefresh()
+        val target = RefreshTarget(download.id, download.fileName, download.totalBytes)
+        refreshTarget = target
+        refreshMatcher = RefreshMatcher(target) { url, headers -> probeGate.withPermit { container.manager.probe(url, headers) } }
+        refreshTabId = newTab(page).id
+        mainHandler.postDelayed({ if (refreshTarget === target) refreshSlow = true }, REFRESH_PATIENCE_MS)
     }
 
-    fun cancelRefresh() {
+    fun cancelRefresh() = endRefresh()
+
+    private fun endRefresh() {
+        refreshTarget?.close()
         refreshTarget = null
+        refreshMatcher = null
+        refreshSlow = false
+        tabs.forEach { it.webView?.settings?.mediaPlaybackRequiresUserGesture = true }
     }
 
-    /** Every capture ends up here: in refresh mode it replaces the waiting download's link, otherwise it is a new download. */
+    /** Every capture the user picked ends up here: in refresh mode it replaces the waiting download's link, otherwise it is a new download. */
     private fun deliver(capture: PendingDownload) {
         val target = refreshTarget
         if (target == null) {
@@ -153,8 +178,60 @@ class BrowserViewModel(app: Application) : AndroidViewModel(app) {
         } else if (capture.kind != DownloadKind.HTTP) {
             toast("Pick a plain file link: streams can't be refreshed")
         } else {
-            refreshTarget = null
+            endRefresh()
             refreshHandler?.invoke(target.downloadId, capture)
+        }
+    }
+
+    /**
+     * Refresh mode: asks the server about a file the page requested. If its size is exactly the waiting download's, the
+     * link is replaced at once. Anything else is ignored, or handed to [fallback] (a download the page started itself,
+     * which would otherwise vanish) for the usual question to the user.
+     */
+    private fun checkRefreshCandidate(tab: BrowserTab, url: String, headers: Map<String, String>, fallback: PendingDownload? = null) {
+        val target = refreshTarget
+        if (target == null || !target.canAutoMatch) {
+            if (fallback != null) deliver(fallback)
+            return
+        }
+        val matcher = refreshMatcher ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            val probe = matcher.check(url, headers) // non-null = the size matched and the target is now closed
+            mainHandler.post { onRefreshProbed(target, tab, url, headers, probe, fallback) }
+        }
+    }
+
+    private fun onRefreshProbed(target: RefreshTarget, tab: BrowserTab, url: String, headers: Map<String, String>, probe: ProbeResult?, fallback: PendingDownload?) {
+        if (refreshTarget !== target) return // ended meanwhile: matched by another candidate, cancelled, or replaced
+        val handler = autoRefreshHandler
+        if (probe == null || handler == null) {
+            if (handler == null && probe != null) endRefresh() // matched, but nobody to hand it to: the target is spent
+            if (fallback != null) deliver(fallback)
+            return
+        }
+        val capture = PendingDownload(url, headers, target.fileName, probe.mimeType, probe.contentLength, tab.url)
+        endRefresh()
+        // The page was opened for this and keeps streaming the video otherwise.
+        tabs.firstOrNull { it.id == refreshTabId }?.let { closeTab(it.id) }
+        handler(target.downloadId, capture, probe)
+    }
+
+    private fun checkRefreshCandidate(tab: BrowserTab, candidate: MediaCandidate) {
+        if (refreshTarget == null || candidate.epoch != tab.media.epoch) return
+        if (candidate.kind != MediaClassifier.Kind.VIDEO_FILE && candidate.kind != MediaClassifier.Kind.AUDIO_FILE &&
+            candidate.kind != MediaClassifier.Kind.UNKNOWN_MEDIA
+        ) return
+        val ua = tab.webView?.settings?.userAgentString ?: settings.userAgent
+        checkRefreshCandidate(tab, candidate.url, DownloadHeaders.fromBrowser(cookiesFor(tab, candidate.url), ua, candidate.referer ?: tab.url, withOrigin = true))
+    }
+
+    /** Players that wait for a tap on play never ask for their video; start them (muted), a few times for late ones. */
+    private fun tryPlayback(tab: BrowserTab, wv: WebView) {
+        val target = refreshTarget ?: return
+        for (delay in RefreshScript.RETRY_DELAYS_MS) {
+            mainHandler.postDelayed({
+                if (refreshTarget === target && tab.webView === wv) wv.evaluateJavascript(RefreshScript.PLAY, null)
+            }, delay)
         }
     }
 
@@ -365,9 +442,11 @@ class BrowserViewModel(app: Application) : AndroidViewModel(app) {
             return
         }
         val name = FilenameUtils.resolve(contentDisposition, url, mimeType?.takeIf { it.isNotBlank() })
-        if (settings.interceptDownloads || refreshTarget != null) {
+        val refreshing = refreshTarget != null
+        if (settings.interceptDownloads || refreshing) {
             val headers = DownloadHeaders.fromBrowser(cookiesFor(tab, url), userAgent, tab.url)
-            deliver(PendingDownload(url, headers, name, mimeType, length, tab.url))
+            val capture = PendingDownload(url, headers, name, mimeType, length, tab.url)
+            if (refreshing) checkRefreshCandidate(tab, url, headers, fallback = capture) else deliver(capture)
         } else {
             systemDownload(tab, url, userAgent, mimeType, name)
         }
@@ -421,7 +500,10 @@ class BrowserViewModel(app: Application) : AndroidViewModel(app) {
     private fun onMediaRequest(tab: BrowserTab, url: String, referer: String?) {
         if (isYoutube(tab)) return
         val candidate = tab.media.offer(url, referer ?: tab.url) ?: return
-        mainHandler.post { launchProbe(tab, candidate, openSheetWhenFound = false) }
+        mainHandler.post {
+            launchProbe(tab, candidate, openSheetWhenFound = false)
+            checkRefreshCandidate(tab, candidate)
+        }
     }
 
     private fun onPlayEvent(tab: BrowserTab, url: String) {
@@ -573,6 +655,7 @@ class BrowserViewModel(app: Application) : AndroidViewModel(app) {
             useWideViewPort = true
             loadWithOverviewMode = true
             if (tab.incognito && !isolated) cacheMode = WebSettings.LOAD_NO_CACHE
+            if (refreshTarget != null) mediaPlaybackRequiresUserGesture = false // reset by endRefresh
         }
         tab.baseUserAgent = wv.settings.userAgentString
         if (tab.desktop) applyUserAgent(tab, wv)
@@ -942,6 +1025,7 @@ class BrowserViewModel(app: Application) : AndroidViewModel(app) {
             recordVisit(tab)
             if (!isYoutube(tab)) view.evaluateJavascript(MediaScript.SOURCE, null) // idempotent; covers WebViews without document-start scripts
             view.evaluateJavascript(AdScript.SOURCE, null) // idempotent as well; late-created slots are still hidden by the style
+            tryPlayback(tab, view)
         }
 
         override fun doUpdateVisitedHistory(view: WebView, url: String, isReload: Boolean) {
@@ -1035,5 +1119,6 @@ class BrowserViewModel(app: Application) : AndroidViewModel(app) {
         const val VIDEO_TOUCH_WINDOW_MS = 3_000L
         const val BLOCKED_PUBLISH_MS = 250L
         const val POPUP_DECIDE_TIMEOUT_MS = 3_000L
+        const val REFRESH_PATIENCE_MS = 45_000L
     }
 }

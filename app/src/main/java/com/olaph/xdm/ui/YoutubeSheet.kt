@@ -48,6 +48,8 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.olaph.xdm.AppContainer
+import com.olaph.xdm.core.BatchCheck
+import com.olaph.xdm.core.DuplicateMatch
 import com.olaph.xdm.core.Formatters
 import com.olaph.xdm.youtube.FormatSelector
 import com.olaph.xdm.youtube.OptionKind
@@ -59,6 +61,7 @@ import com.olaph.xdm.youtube.YtInfo
 import com.olaph.xdm.youtube.YtOption
 import com.olaph.xdm.youtube.YtPlan
 import com.olaph.xdm.youtube.YtPlaylist
+import com.olaph.xdm.youtube.YtPlaylistItem
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -70,6 +73,10 @@ private sealed interface YtState {
     data class Video(val info: YtInfo, val options: List<YtOption>, val playlistId: String?) : YtState
     data class Playlist(val list: YtPlaylist) : YtState
 }
+
+private class DuplicateOne(val info: YtInfo, val option: YtOption, val options: List<YtOption>, val rememberIt: Boolean, val match: DuplicateMatch)
+
+private class DuplicateMany(val check: BatchCheck<YtPlaylistItem>)
 
 /** Qualities offered for a whole playlist (the "ask" entry makes no sense there). */
 private val PLAYLIST_QUALITIES = listOf(YoutubeQuality.BEST, YoutubeQuality.P1080, YoutubeQuality.P720, YoutubeQuality.P480, YoutubeQuality.AUDIO)
@@ -90,6 +97,8 @@ fun YoutubeSheet(
     defaultPrivate: Boolean,
     onDismiss: () -> Unit,
     onDone: (String) -> Unit,
+    /** "Open existing" in the duplicate dialog: show download [id] (the sheet is closed afterwards). */
+    onOpenExisting: (Long) -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -101,10 +110,42 @@ fun YoutubeSheet(
     var savePrivate by remember { mutableStateOf(defaultPrivate) }
     val toPrivate = savePrivate && privateAvailable
 
+    // Something that looks like what is already in the list waits here for the user's answer.
+    var duplicateOne by remember { mutableStateOf<DuplicateOne?>(null) }
+    var duplicateMany by remember { mutableStateOf<DuplicateMany?>(null) }
+
     suspend fun addOption(info: YtInfo, option: YtOption, options: List<YtOption>, rememberIt: Boolean) {
         container.manager.addYoutube(YtPlan.forOption(info.videoId, option), info.title, startNow = false, connections = connections, isPrivate = toPrivate)
         if (rememberIt) FormatSelector.qualityFor(option, options)?.let { container.settings.setYoutubeQuality(it) }
         onDone("Added: " + FormatSelector.fileName(info.title, option))
+    }
+
+    /** [addOption], unless the same video in the same quality is already there. */
+    suspend fun addOptionChecked(info: YtInfo, option: YtOption, options: List<YtOption>, rememberIt: Boolean) {
+        val candidate = container.manager.youtubeCandidate(YtPlan.forOption(info.videoId, option), info.title, toPrivate)
+        val match = container.manager.findDuplicate(candidate)
+        if (match == null) {
+            addOption(info, option, options, rememberIt)
+        } else {
+            duplicateOne = DuplicateOne(info, option, options, rememberIt, match)
+            busy = false
+        }
+    }
+
+    suspend fun addPlaylist(items: List<YtPlaylistItem>, skipped: Int) {
+        for (item in items) {
+            container.manager.addYoutube(
+                YtPlan.deferred(item.videoId, playlistQuality), item.title, startNow = false,
+                connections = connections, isPrivate = toPrivate,
+            )
+        }
+        onDone(
+            when {
+                items.isEmpty() -> "Nothing added: all $skipped videos are already in your list"
+                skipped > 0 -> "Added ${items.size} videos from the playlist, skipped $skipped already in your list"
+                else -> "Added ${items.size} videos from the playlist"
+            },
+        )
     }
 
     LaunchedEffect(target) {
@@ -124,7 +165,7 @@ fun YoutubeSheet(
                     }
                     val picked = if (defaultQuality == YoutubeQuality.ASK) null else FormatSelector.pick(info, defaultQuality, options)
                     if (picked != null) {
-                        addOption(info, picked, options, rememberIt = false)
+                        addOptionChecked(info, picked, options, rememberIt = false)
                     } else {
                         state = YtState.Video(info, options, t.listId?.takeIf { YoutubeUrls.isRealPlaylist(it) })
                     }
@@ -136,6 +177,40 @@ fun YoutubeSheet(
         } catch (t: Throwable) {
             state = YtState.Failed(YoutubeErrors.from(t).message.orEmpty())
         }
+    }
+
+    duplicateOne?.let { d ->
+        DuplicateDialog(
+            match = d.match,
+            onResume = {
+                duplicateOne = null
+                container.manager.resume(d.match.existing.id)
+                onDone("Resuming ${d.match.existing.fileName}")
+            },
+            onOpen = { duplicateOne = null; onOpenExisting(d.match.existing.id); onDismiss() },
+            onAddAgain = {
+                duplicateOne = null
+                busy = true
+                scope.launch { addOption(d.info, d.option, d.options, d.rememberIt) }
+            },
+            onCancel = { duplicateOne = null; onDismiss() },
+        )
+    }
+    duplicateMany?.let { d ->
+        BatchDuplicateDialog(
+            check = d.check,
+            onSkip = {
+                duplicateMany = null
+                busy = true
+                scope.launch { addPlaylist(d.check.withoutDuplicates(), skipped = d.check.duplicates) }
+            },
+            onAddAll = {
+                duplicateMany = null
+                busy = true
+                scope.launch { addPlaylist(d.check.items, skipped = 0) }
+            },
+            onCancel = { duplicateMany = null },
+        )
     }
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = sheetState) {
@@ -180,7 +255,7 @@ fun YoutubeSheet(
                     onPick = { option ->
                         if (!busy) {
                             busy = true
-                            scope.launch { addOption(s.info, option, s.options, rememberChoice) }
+                            scope.launch { addOptionChecked(s.info, option, s.options, rememberChoice) }
                         }
                     },
                 )
@@ -194,13 +269,16 @@ fun YoutubeSheet(
                         if (!busy) {
                             busy = true
                             scope.launch {
-                                for (item in s.list.items) {
-                                    container.manager.addYoutube(
-                                        YtPlan.deferred(item.videoId, playlistQuality), item.title, startNow = false,
-                                        connections = connections, isPrivate = toPrivate,
-                                    )
+                                val matches = container.manager.findDuplicates(
+                                    s.list.items.map { container.manager.youtubeCandidate(YtPlan.deferred(it.videoId, playlistQuality), it.title, toPrivate) },
+                                )
+                                val check = BatchCheck(s.list.items, matches)
+                                if (check.duplicates == 0) {
+                                    addPlaylist(s.list.items, skipped = 0)
+                                } else {
+                                    duplicateMany = DuplicateMany(check)
+                                    busy = false
                                 }
-                                onDone("Added ${s.list.items.size} videos from the playlist")
                             }
                         }
                     },

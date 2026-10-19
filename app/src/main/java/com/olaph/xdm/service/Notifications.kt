@@ -18,6 +18,7 @@ import com.olaph.xdm.core.FileSaver
 import com.olaph.xdm.core.Formatters
 import com.olaph.xdm.core.LinkRefresh
 import com.olaph.xdm.core.LiveProgress
+import com.olaph.xdm.core.RefreshNotifier
 import com.olaph.xdm.data.DownloadEntity
 import com.olaph.xdm.data.DownloadStatus
 import com.olaph.xdm.engine.MimeTypes
@@ -26,7 +27,7 @@ import com.olaph.xdm.ui.MainActivity
 class NotificationHelper(
     private val context: Context,
     private val fileSaver: FileSaver,
-) : DownloadNotifier {
+) : DownloadNotifier, RefreshNotifier {
 
     private val nm = NotificationManagerCompat.from(context)
 
@@ -46,6 +47,11 @@ class NotificationHelper(
             )
             sys.createNotificationChannel(
                 NotificationChannel(CHANNEL_ATTENTION, "Paused and scheduled downloads", NotificationManager.IMPORTANCE_DEFAULT),
+            )
+            sys.createNotificationChannel(
+                NotificationChannel(CHANNEL_REFRESHED, "Refreshed links", NotificationManager.IMPORTANCE_LOW).apply {
+                    setShowBadge(false)
+                },
             )
         }
     }
@@ -287,8 +293,40 @@ class NotificationHelper(
         notify(doneId(download.id), n)
     }
 
+    // ---- automatic link refresh (RefreshNotifier) ----
+
+    override fun refreshed(download: DownloadEntity) {
+        val n = NotificationCompat.Builder(context, CHANNEL_REFRESHED)
+            .setSmallIcon(R.drawable.ic_stat_download)
+            .setContentTitle("Link refreshed, download resumed: ${download.fileName}")
+            .setContentIntent(openApp())
+            .setAutoCancel(true)
+            .setSilent(true)
+            .setCategory(NotificationCompat.CATEGORY_STATUS)
+            .build()
+        // Replaces the failure notice of the same download, if one is still showing.
+        notify(doneId(download.id), n)
+    }
+
+    override fun couldNotRefresh(download: DownloadEntity) {
+        val n = NotificationCompat.Builder(context, CHANNEL_DONE)
+            .setSmallIcon(R.drawable.ic_stat_error)
+            .setContentTitle("Couldn't refresh the link for ${download.fileName}")
+            .setContentText(NotificationText.failed(download))
+            .setContentIntent(openApp())
+            .setAutoCancel(true)
+            .addAction(0, "Open page", refreshLink(download.id))
+            .addAction(0, "Retry", action(DownloadService.ACTION_RESUME, download.id, requestCode(download.id, 1)))
+            .setCategory(NotificationCompat.CATEGORY_ERROR)
+            .build()
+        notify(doneId(download.id), n)
+    }
+
+    override fun failed(download: DownloadEntity) = onFailed(download)
+
     companion object {
         const val CHANNEL_PROGRESS = "downloads"
+        const val CHANNEL_REFRESHED = "refreshed_links"
         const val CHANNEL_DONE = "completed"
         const val CHANNEL_RESUME = "resume_after_restart"
         const val CHANNEL_ATTENTION = "paused_scheduled"

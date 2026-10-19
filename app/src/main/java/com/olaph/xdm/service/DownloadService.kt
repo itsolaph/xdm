@@ -119,7 +119,9 @@ class DownloadService : Service() {
         combine(
             c.dao.observeOpen(), c.manager.live, c.manager.hold, c.network.online,
             c.settings.flow.map { it.speedLimitBytesPerSec }.distinctUntilChanged(),
-        ) { open, live, hold, online, limit -> Snapshot(open, live, hold, online, limit) }.collectLatest { (open, live, hold, online, limit) ->
+        ) { open, live, hold, online, limit -> Snapshot(open, live, hold, online, limit, refreshing = false) }
+            .combine(c.autoRefresh.active) { snapshot, refreshing -> snapshot.copy(refreshing = refreshing) }
+            .collectLatest { (open, live, hold, online, limit, refreshing) ->
             val running = open.filter { it.status == DownloadStatus.RUNNING }
             val queued = open.count { it.status == DownloadStatus.QUEUED }
             val speed = running.sumOf { live[it.id]?.bytesPerSecond ?: 0L }
@@ -144,7 +146,8 @@ class DownloadService : Service() {
 
             // Downloads that wait for the schedule or the charger need no service: it would only use up the system's time.
             val waitingForClock = hold == Hold.SCHEDULE || hold == Hold.CHARGING
-            if (running.isEmpty() && (queued == 0 || waitingForClock)) {
+            // A background link refresh is under way: the process has to stay up until it has finished.
+            if (running.isEmpty() && (queued == 0 || waitingForClock) && !refreshing) {
                 // Debounce: a resume tapped on a notification arrives a moment after the service starts.
                 delay(STOP_GRACE_MS)
                 ServiceCompat.stopForeground(this@DownloadService, ServiceCompat.STOP_FOREGROUND_REMOVE)
@@ -159,6 +162,7 @@ class DownloadService : Service() {
         val hold: Hold?,
         val online: Boolean,
         val limit: Long,
+        val refreshing: Boolean,
     )
 
     override fun onDestroy() {

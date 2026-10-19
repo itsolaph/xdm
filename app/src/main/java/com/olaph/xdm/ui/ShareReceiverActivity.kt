@@ -18,6 +18,7 @@ import com.olaph.xdm.XdmApp
 import com.olaph.xdm.core.PendingDownload
 import com.olaph.xdm.data.AppSettings
 import com.olaph.xdm.engine.UrlUtils
+import com.olaph.xdm.service.DownloadService
 
 /**
  * Transparent entry point for "Share → XDM" and "Open with → XDM": shows only the add sheet on top of
@@ -69,6 +70,7 @@ class ShareReceiverActivity : ComponentActivity() {
                                 Toast.makeText(this@ShareReceiverActivity, it, Toast.LENGTH_SHORT).show()
                                 finish()
                             },
+                            onOpenExisting = ::openExisting,
                         )
                     } else {
                         AddDownloadSheet(
@@ -83,10 +85,19 @@ class ShareReceiverActivity : ComponentActivity() {
                                 finish()
                             },
                             onYoutube = { link = it },
+                            onOpenExisting = ::openExisting,
                         )
                     }
                 }
             }
         }
+    }
+
+    /** The duplicate dialog's "Open existing": the full app, on that download. */
+    private fun openExisting(id: Long) {
+        startActivity(
+            Intent(this, MainActivity::class.java).setAction(MainActivity.ACTION_OPEN_DOWNLOAD)
+                .putExtra(DownloadService.EXTRA_ID, id).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP),
+        )
     }
 }

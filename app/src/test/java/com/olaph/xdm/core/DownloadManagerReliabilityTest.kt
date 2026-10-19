@@ -454,6 +454,104 @@ class DownloadManagerReliabilityTest {
         }
     }
 
+    @Test fun anExpiredLinkFailureCanBeTakenOverSoNoFailureNoticeIsPosted() = runBlocking {
+        val (link, srv) = linkServer(ByteArray(3 * 1024 * 1024).also { Random(10).nextBytes(it) })
+        try {
+            val seen = CopyOnWriteArrayList<String?>()
+            manager.interceptFailure = { seen += it.error; true }
+            val (id, _) = expiredHalfway(link, srv)
+            waitUntil("interceptor asked") { seen.isNotEmpty() }
+            assertEquals(listOf(dao.find(id)!!.error), seen.toList())
+            assertTrue(seen.single()!!.contains("403"))
+            assertTrue(notifier.failed.isEmpty())
+        } finally {
+            srv.shutdown()
+        }
+    }
+
+    @Test fun aFailureNobodyTakesOverIsAnnouncedAsBefore() = runBlocking {
+        val (link, srv) = linkServer(ByteArray(3 * 1024 * 1024).also { Random(11).nextBytes(it) })
+        try {
+            manager.interceptFailure = { false }
+            val (id, _) = expiredHalfway(link, srv)
+            waitUntil("notice") { notifier.failed.isNotEmpty() }
+            assertEquals(id, notifier.failed.single().id)
+        } finally {
+            srv.shutdown()
+        }
+    }
+
+    @Test fun aBrokenInterceptorStillLeavesTheFailureNotice() = runBlocking {
+        val (link, srv) = linkServer(ByteArray(3 * 1024 * 1024).also { Random(12).nextBytes(it) })
+        try {
+            manager.interceptFailure = { throw IllegalStateException("boom") }
+            expiredHalfway(link, srv)
+            waitUntil("notice") { notifier.failed.isNotEmpty() }
+        } finally {
+            srv.shutdown()
+        }
+    }
+
+    @Test fun aRefreshedLinkOfTheSameFileIsTakenOverAndTheDownloadFinishes() = runBlocking {
+        val payload = ByteArray(3 * 1024 * 1024 + 5).also { Random(13).nextBytes(it) }
+        val (link, srv) = linkServer(payload)
+        try {
+            val (id, saved) = expiredHalfway(link, srv)
+            val newUrl = srv.url("/new/f.bin").toString()
+            val probe = manager.probe(newUrl)
+            val applied = manager.applyRefreshedLink(id, newUrl, probe, mapOf("Referer" to "https://site.test/page"), "https://site.test/page")
+            assertEquals(AppliedLink.Replaced, applied)
+            waitUntil("completed") { status(id) == DownloadStatus.COMPLETED }
+            assertArrayEquals(payload, files.saved.single().readBytes())
+            val starts = link.ranges.filter { it.first.startsWith("/new/") }.map { it.second }
+            assertTrue(starts.none { s -> saved.any { seg -> s >= seg.start && s < seg.start + seg.downloaded } })
+        } finally {
+            srv.shutdown()
+        }
+    }
+
+    @Test fun aRefreshedLinkWhoseFileChangedNeedsTheUsersAnswerAndChangesNothing() = runBlocking {
+        val (link, srv) = linkServer(ByteArray(3 * 1024 * 1024).also { Random(14).nextBytes(it) })
+        try {
+            val (id, _) = expiredHalfway(link, srv)
+            val before = dao.find(id)!!
+            link.etag = "\"v2\""
+            val newUrl = srv.url("/new/f.bin").toString()
+            val applied = manager.applyRefreshedLink(id, newUrl, manager.probe(newUrl), null, null)
+            assertTrue(applied is AppliedLink.NeedsAnswer)
+            assertEquals(before.url, dao.find(id)!!.url)
+            assertEquals(DownloadStatus.FAILED, status(id))
+        } finally {
+            srv.shutdown()
+        }
+    }
+
+    // ---- duplicates ----
+
+    @Test fun aFinishedDownloadIsADuplicateOnlyWhileItsFileIsThere() = runBlocking {
+        val u = url("dup.bin")
+        val id = manager.add(u, "dup.bin", 2, startNow = true, probe = manager.probe(u))
+        waitUntil("completed") { status(id) == DownloadStatus.COMPLETED }
+
+        val again = manager.findDuplicate(DuplicateCandidate(u, "other-name.bin"))!!
+        assertEquals(DuplicateReason.SAME_LINK, again.reason)
+        assertEquals(id, again.existing.id)
+        assertEquals(DuplicateReason.SAME_NAME, manager.findDuplicate(DuplicateCandidate(url("elsewhere.bin"), "dup.bin"))!!.reason)
+
+        files.saved.single().delete() // removed outside the app
+        assertNull(manager.findDuplicate(DuplicateCandidate(u, "dup.bin")))
+    }
+
+    @Test fun aCancelledDownloadIsNotADuplicateAndPrivateAddsAreNotChecked() = runBlocking {
+        val u = url("gone.bin")
+        val id = manager.add(u, "gone.bin", 2, startNow = false, probe = manager.probe(u))
+        assertEquals(DuplicateReason.SAME_LINK, manager.findDuplicate(DuplicateCandidate(u, "gone.bin"))!!.reason)
+        assertNull("a private add is not compared with anything", manager.findDuplicate(DuplicateCandidate(u, "gone.bin", isPrivate = true)))
+        manager.cancel(id)
+        waitUntil("cancelled") { status(id) == DownloadStatus.CANCELLED }
+        assertNull(manager.findDuplicate(DuplicateCandidate(u, "gone.bin")))
+    }
+
     @Test fun aReplacementWithAnotherEtagOffersARestartAndHonoursIt() = runBlocking {
         val payload = ByteArray(3 * 1024 * 1024).also { Random(9).nextBytes(it) }
         val (link, srv) = linkServer(payload)

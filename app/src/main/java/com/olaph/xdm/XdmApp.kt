@@ -4,11 +4,16 @@ import android.app.Application
 import androidx.room.Room
 import com.olaph.xdm.adblock.AdBlocker
 import com.olaph.xdm.adblock.FilterListRepository
+import com.olaph.xdm.browser.HeadlessRefresher
+import com.olaph.xdm.core.AppliedLink
+import com.olaph.xdm.core.AutoRefresh
 import com.olaph.xdm.core.DownloadManager
 import com.olaph.xdm.core.FileSaver
 import com.olaph.xdm.core.Hold
 import com.olaph.xdm.core.NetworkMonitor
 import com.olaph.xdm.core.PowerMonitor
+import com.olaph.xdm.core.RefreshOutcome
+import com.olaph.xdm.core.RefreshPort
 import com.olaph.xdm.crash.CrashReporter
 import com.olaph.xdm.data.ALL_MIGRATIONS
 import com.olaph.xdm.data.BrowserDao
@@ -124,6 +129,21 @@ class AppContainer(private val app: Application) {
         privateStore = vault,
         power = power,
         targetFreeSpace = fileSaver::targetFreeSpace,
+        plannedFolder = fileSaver::plannedFolder,
+    )
+
+    /** Gets a new link for a download that failed with an expired one, from its page, in the background. */
+    val autoRefresh = AutoRefresh(
+        scope = scope,
+        settings = settings,
+        port = object : RefreshPort {
+            override suspend fun get(id: Long) = dao.get(id)
+
+            override suspend fun apply(id: Long, found: RefreshOutcome.Found) =
+                manager.applyRefreshedLink(id, found.url, found.probe, found.headers, found.pageUrl) == AppliedLink.Replaced
+        },
+        finder = HeadlessRefresher(app, adBlocker) { url, headers -> manager.probe(url, headers) },
+        notifier = notifications,
     )
 
     /** Downloads may run in this process: an activity is on screen or the foreground service is up. */
@@ -142,6 +162,7 @@ class AppContainer(private val app: Application) {
     fun start() {
         vaultLock.start()
         manager.restore()
+        manager.interceptFailure = { autoRefresh.onFailed(it) }
         // The schedule opened (or the charger came) while nothing ran: the service has to start, or the user is told.
         manager.onScheduleReady = {
             if (!DownloadService.start(app)) {
@@ -159,11 +180,12 @@ class AppContainer(private val app: Application) {
         // Keep a foreground service alive exactly while something runs or may start now (once the queue may run). Downloads
         // that wait for the schedule or the charger do not count: an idle service only uses up the system's time budget.
         scope.launch {
-            combine(dao.observeOpen(), manager.queueReleased, manager.hold) { open, released, hold ->
+            combine(dao.observeOpen(), manager.queueReleased, manager.hold, autoRefresh.active) { open, released, hold, refreshing ->
                 val clockHold = hold == Hold.SCHEDULE || hold == Hold.CHARGING
-                released && open.any {
+                // A background link refresh needs the process kept up as much as a download does.
+                released && (refreshing || open.any {
                     it.status == DownloadStatus.RUNNING || (it.status == DownloadStatus.QUEUED && (it.forceStart || !clockHold))
-                }
+                })
             }.distinctUntilChanged().filter { it }
                 .collect {
                     if (!DownloadService.start(app)) {
