@@ -2,6 +2,10 @@
 
 A lightweight download manager for Android, in the spirit of 1DM and IDM+. Written in Kotlin with Jetpack Compose (Material 3), OkHttp, Room and DataStore.
 
+<img src="docs/screenshots.png" alt="XDM: add-download sheet, downloads in progress, built-in browser, dark theme" width="100%">
+
+<sub>Left to right: the add sheet (size check, 8 connections), five downloads running, the built-in browser, dark theme. Files shown are public test files and Blender open movies.</sub>
+
 ## Fair use
 
 XDM is for downloading files and videos you're **allowed** to download: your own, freely licensed (Creative Commons, public domain), or shared with the owner's permission. Don't use it to download or redistribute copyrighted content without permission.
