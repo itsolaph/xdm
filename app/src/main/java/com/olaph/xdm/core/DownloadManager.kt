@@ -1016,7 +1016,8 @@ class DownloadManager(
     }
 
     private fun describe(e: Throwable): String = when (e) {
-        is FatalDownloadException -> if (e.httpCode > 0) "Server error: HTTP ${e.httpCode}" else e.message ?: "Download failed"
+        is FatalDownloadException ->
+            if (e.httpCode >= 300 || e.httpCode in 1..199) "Server error: HTTP ${e.httpCode}" else e.message ?: "Download failed"
         is HttpStatusException -> "Server error: HTTP ${e.httpCode}"
         else -> e.message?.takeIf { it.isNotBlank() } ?: e.javaClass.simpleName
     }

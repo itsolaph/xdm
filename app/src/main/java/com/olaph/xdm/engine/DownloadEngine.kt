@@ -21,6 +21,7 @@ import java.io.RandomAccessFile
 import java.nio.ByteBuffer
 import java.nio.channels.FileChannel
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.min
 
@@ -34,6 +35,8 @@ import kotlin.math.min
 class DownloadEngine(
     client: OkHttpClient,
     private val maxRetries: Int = 5,
+    /** Furthest a segment may read past and discard when the server will not send just its part. */
+    private val maxSkipAheadBytes: Long = 256L * 1024 * 1024,
     private val backoffMs: (attempt: Int) -> Long = { attempt -> min(30_000L, 1_000L shl (attempt - 1)) },
     private val tickMs: Long = 250,
     private val persistIntervalMs: Long = 500,
@@ -102,6 +105,8 @@ class DownloadEngine(
         val minSplit = if (probe.resumable && connections > 1) minSplitBytes else 0L
 
         val validation = Validation()
+        // Set once the server sends a whole file for a range request: no new splits after that, only finish what exists.
+        val rangesFlaky = AtomicBoolean(false)
         val channel = RandomAccessFile(file, "rw").channel
         try {
             coroutineScope {
@@ -133,9 +138,9 @@ class DownloadEngine(
                     List(workers) {
                         async {
                             while (true) {
-                                val seg = table.next(minSplit) ?: break
+                                val seg = table.next(if (rangesFlaky.get()) 0L else minSplit) ?: break
                                 try {
-                                    runSegment(request, probe, table, seg, channel, urls, validation)
+                                    runSegment(request, probe, table, seg, channel, urls, validation, rangesFlaky)
                                 } finally {
                                     table.finished(seg)
                                 }
@@ -185,19 +190,41 @@ class DownloadEngine(
         channel: FileChannel,
         urls: UrlHolder,
         validation: Validation,
+        rangesFlaky: AtomicBoolean,
     ) {
         val counter = seg.downloaded
         var attempt = 0
+        var refusals = 0
+        var skipAhead = false
         while (true) {
             currentCoroutineContext().ensureActive()
             val before = counter.get()
             val interruptsBefore = interrupts.get()
             val used = urls.url
             try {
-                transferSegment(request, used, probe, table, seg, channel)
+                transferSegment(request, used, probe, table, seg, channel, skipAhead)
                 return
             } catch (e: CancellationException) {
                 throw e
+            } catch (e: RangeIgnoredException) {
+                rangesFlaky.set(true)
+                refusals++
+                if (refusals <= maxRetries) {
+                    delay(backoffMs(refusals))
+                    awaitNetwork()
+                    continue
+                }
+                // The server keeps ignoring Range for this part. Reading the whole response and throwing away the
+                // bytes before this segment always works; it only costs those bytes again, so cap how many.
+                val position = seg.start + counter.get()
+                if (!skipAhead && position <= maxSkipAheadBytes) {
+                    skipAhead = true
+                    continue
+                }
+                throw FatalDownloadException(
+                    "The server stopped allowing multi-connection downloads for this file. Retry it with 1 connection.",
+                    cause = e,
+                )
             } catch (e: FatalDownloadException) {
                 // Signed URL expired: get a new one and carry on from the bytes already written.
                 if (e.isExpiredUrl() && urls.renew(used)) continue
@@ -257,6 +284,7 @@ class DownloadEngine(
         table: SegmentTable,
         seg: SegmentTable.Live,
         channel: FileChannel,
+        skipAhead: Boolean = false,
     ) {
         val offset = table.begin(seg)
         val end = seg.end
@@ -272,10 +300,17 @@ class DownloadEngine(
         try {
             call.executeAndUse { r ->
                 checkStatus(r.code)
-                if (range != null) {
-                    if (r.code != 206) {
+                // A 200 to a range request carries the file from byte 0.
+                var discard = 0L
+                if (range != null && r.code != 206) {
+                    if (r.code != 200) throw FatalDownloadException("Server ignored the Range header (HTTP ${r.code})", r.code)
+                    val length = r.body?.contentLength() ?: -1L
+                    if (probe.contentLength > 0 && length >= 0 && length != probe.contentLength) {
                         throw FatalDownloadException("Server ignored the Range header (HTTP ${r.code})", r.code)
                     }
+                    if (offset != 0L && !skipAhead) throw RangeIgnoredException(r.code)
+                    discard = offset
+                } else if (range != null) {
                     val start = r.header("Content-Range")?.substringAfter("bytes ", "")?.substringBefore('-')
                         ?.trim()?.toLongOrNull()
                     if (start != null && start != offset) {
@@ -285,6 +320,13 @@ class DownloadEngine(
                 val body = r.body ?: throw IOException("Empty response body")
                 val input = body.byteStream()
                 val buf = ByteArray(BUFFER_SIZE)
+                while (discard > 0) {
+                    val n = input.read(buf, 0, min(buf.size.toLong(), discard).toInt())
+                    if (n < 0) throw IOException("Connection closed while skipping to byte $offset")
+                    discard -= n
+                    ctx.ensureActive()
+                    limiter.acquire(n)
+                }
                 var pos = offset
                 // The end can move down while this runs (the segment was split). Bytes past it belong to another
                 // connection: they are never written, and the response is closed as soon as the end is reached.

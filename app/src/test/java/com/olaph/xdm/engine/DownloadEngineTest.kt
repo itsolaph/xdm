@@ -54,6 +54,8 @@ class DownloadEngineTest {
         @Volatile var contentDisposition: String? = null
         @Volatile var chunkedNoLength = false
         val failFirstGets = AtomicInteger(0) // answer this many GETs with 503
+        val ignoreRangeGets = AtomicInteger(0) // answer this many range GETs (not from byte 0) with the whole file
+        @Volatile var ignoreRangeAlways = false // every range GET gets the whole file (HTTP 200)
         @Volatile var errorCode = 0 // if set, every GET answers with this status
         val requests = CopyOnWriteArrayList<RecordedRequest>()
         val bytesServed = AtomicLong()
@@ -78,7 +80,10 @@ class DownloadEngineTest {
             if (range != null && range != "bytes=0-0" && failFirstGets.get() > 0 && failFirstGets.getAndDecrement() > 0) {
                 return MockResponse().setResponseCode(503)
             }
-            if (!supportRanges || range == null) {
+            val fromZero = range != null && range.startsWith("bytes=0-")
+            val ignore = range != null && range != "bytes=0-0" && (ignoreRangeAlways ||
+                (!fromZero && ignoreRangeGets.get() > 0 && ignoreRangeGets.getAndDecrement() > 0))
+            if (!supportRanges || range == null || ignore) {
                 bytesServed.addAndGet(data.size.toLong())
                 return common.apply {
                     if (chunkedNoLength) setChunkedBody(Buffer().write(data), 8192) else setBody(Buffer().write(data))
@@ -264,6 +269,34 @@ class DownloadEngineTest {
         }
         // 1 try + 5 retries for each failing segment, not an endless loop
         assertTrue(dispatcher.rangeGets().size <= 8 * 6 + 8)
+    }
+
+    @Test fun rangeAnsweredWithWholeFileIsRetriedNotFatal() = runBlocking {
+        // A CDN under load sometimes answers a range request with 200 + the whole file; that used to fail the item.
+        dispatcher.ignoreRangeGets.set(3)
+        val file = File(tmp.root, "flaky200.part")
+        engine().download(request(file), MemoryStore())
+        assertEquals(sha256(dispatcher.payload), sha256(file))
+    }
+
+    @Test fun serverThatAlwaysIgnoresRangeStillCompletesBySkippingAhead() = runBlocking {
+        dispatcher.ignoreRangeAlways = true
+        val file = File(tmp.root, "always200.part")
+        engine().download(request(file), MemoryStore())
+        assertEquals(sha256(dispatcher.payload), sha256(file))
+    }
+
+    @Test fun ignoredRangeBeyondSkipLimitFailsWithClearMessage() = runBlocking {
+        dispatcher.ignoreRangeAlways = true
+        val file = File(tmp.root, "toofar.part")
+        val eng = DownloadEngine(client, maxRetries = 2, backoffMs = { 1 }, tickMs = 20, persistIntervalMs = 40, maxSkipAheadBytes = 1024)
+        try {
+            eng.download(request(file), MemoryStore())
+            fail("expected failure")
+        } catch (e: FatalDownloadException) {
+            assertEquals(0, e.httpCode)
+            assertTrue(e.message!!.contains("1 connection"))
+        }
     }
 
     @Test fun clientErrorFailsImmediatelyWithoutRetry() = runBlocking {

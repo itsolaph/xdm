@@ -87,5 +87,12 @@ open class FatalDownloadException(message: String, val httpCode: Int = 0, cause:
 /** The server's file is no longer the one the bytes on disk came from (size, ETag or Last-Modified differ). */
 class FileChangedException : FatalDownloadException("The file changed on the server")
 
+/**
+ * A request for part of the file got the whole file back (HTTP 200). CDNs do this now and then under load even though
+ * the same file answered 206 before, so it is retried; only when it keeps happening does the engine change tactics.
+ */
+class RangeIgnoredException(val httpCode: Int) :
+    IOException("Server sent the whole file instead of the requested part (HTTP $httpCode)")
+
 /** Retryable HTTP failure (5xx, 408, 429). */
 class HttpStatusException(val httpCode: Int) : IOException("HTTP $httpCode")
