@@ -18,6 +18,7 @@ import androidx.media3.extractor.TrackOutput
 import androidx.media3.extractor.mkv.MatroskaExtractor
 import androidx.media3.extractor.mp4.FragmentedMp4Extractor
 import androidx.media3.extractor.text.SubtitleParser
+import androidx.media3.muxer.BufferInfo
 import androidx.media3.muxer.Mp4Muxer
 import androidx.media3.muxer.MuxerException
 import kotlinx.coroutines.CancellationException
@@ -281,8 +282,7 @@ class Mp4DashMuxer : DashMuxer {
                 val t = s.track
                 if (t.muxerTrackId < 0) t.muxerTrackId = m.addTrack(if (t.type == C.TRACK_TYPE_VIDEO) 1 else 2, muxerFormat(t))
                 val rel = (s.timeUs - origin).coerceAtLeast(0)
-                val info = MediaCodec.BufferInfo()
-                info.set(0, s.data.size, rel, if (s.flags and C.BUFFER_FLAG_KEY_FRAME != 0) MediaCodec.BUFFER_FLAG_KEY_FRAME else 0)
+                val info = BufferInfo(rel, s.data.size, if (s.flags and C.BUFFER_FLAG_KEY_FRAME != 0) C.BUFFER_FLAG_KEY_FRAME else 0)
                 m.writeSampleData(t.muxerTrackId, ByteBuffer.wrap(s.data), info)
                 t.samplesOut++
                 // The last frame has no successor to measure against: it lasts about as long as the one before it.

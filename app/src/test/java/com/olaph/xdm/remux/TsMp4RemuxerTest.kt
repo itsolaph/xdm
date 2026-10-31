@@ -103,6 +103,26 @@ class TsMp4RemuxerTest {
 
     // ---- fixtures ----
 
+    @Test fun aac44100IsMuxedOnItsExactGrid() {
+        val (r, mp4) = remux(fixture("av.ts"))
+        assertEquals("mp4", r.extension)
+        assertWellFormed(mp4)
+        val a = mp4.audio()
+        // media3 pre-1.9 hardcoded a 48 kHz audio timescale, silently stretching 44.1 kHz audio (~+4 s
+        // over a 2.5 h capture) until it lagged the video. The timescale must be the real sample rate.
+        assertEquals(44100, a.timescale)
+        // And the audio sits on its exact content grid: every frame is 1024 ticks no matter what the
+        // microsecond jitter of the source stamps is, so the span is frames*1024.
+        assertTrue("uniform 1024-tick frames: ${a.sttsDeltas.toList().distinct()}", a.sttsDeltas.all { it == 1024L })
+        val dts = a.decodeTimes()
+        assertEquals((a.sampleCount - 1) * 1024L, dts.last() - dts.first())
+        // ...which keeps audio locked to video: both tracks end within 100 ms of each other.
+        val v = mp4.video()
+        val audioEndUs = dts.last() * 1_000_000 / a.timescale
+        val videoEndUs = v.decodeTimes().last() * 1_000_000 / v.timescale
+        assertTrue("audio ends ${audioEndUs - videoEndUs} us from video", Math.abs(audioEndUs - videoEndUs) <= 100_000)
+    }
+
     @Test fun h264AacInOneTsFile() {
         val (r, mp4) = remux(fixture("av.ts"))
         assertEquals("mp4", r.extension)

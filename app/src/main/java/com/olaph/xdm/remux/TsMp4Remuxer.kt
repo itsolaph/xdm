@@ -1,6 +1,5 @@
 package com.olaph.xdm.remux
 
-import android.media.MediaCodec
 import androidx.annotation.OptIn
 import androidx.media3.common.C
 import androidx.media3.common.DataReader
@@ -19,6 +18,7 @@ import androidx.media3.extractor.TrackOutput
 import androidx.media3.extractor.text.SubtitleParser
 import androidx.media3.extractor.ts.DefaultTsPayloadReaderFactory
 import androidx.media3.extractor.ts.TsExtractor
+import androidx.media3.muxer.BufferInfo
 import androidx.media3.muxer.Mp4Muxer
 import androidx.media3.muxer.MuxerException
 import kotlinx.coroutines.CancellationException
@@ -89,6 +89,13 @@ class TsMp4Remuxer : Remuxer {
         var sawWritable = false
         var samplesIn = 0
         var samplesOut = 0
+
+        // AAC audio re-stamping state: see write() for why. gridAnchor is the mapped time of the first
+        // sample of the current grid segment, gridIdx counts samples inside it, gridLastRaw feeds the
+        // content-gap detector.
+        var gridIdx = 0L
+        var gridAnchor = C.TIME_UNSET
+        var gridLastRaw = C.TIME_UNSET
 
         private var data = ByteArray(64 * 1024)
         private var end = 0
@@ -333,17 +340,45 @@ class TsMp4Remuxer : Remuxer {
                 if (!key) return
                 t.sawKeyFrame = true
             }
-            val out = timeline.map(t.timelineIndex, s.rawUs, key)
+            val out = retimeAudio(t, timeline.map(t.timelineIndex, s.rawUs, key), s.rawUs)
             if (out == TsTimeline.DROP) return
             val m = checkNotNull(muxer)
             if (t.muxerTrackId < 0) {
                 t.muxerTrackId = m.addTrack(if (t.kind == TsTimeline.Kind.VIDEO) 1 else 2, muxerFormat(t))
             }
-            val info = MediaCodec.BufferInfo()
-            info.set(0, s.data.size, out, if (key) MediaCodec.BUFFER_FLAG_KEY_FRAME else 0)
+            val info = BufferInfo(out, s.data.size, if (key) C.BUFFER_FLAG_KEY_FRAME else 0)
             m.writeSampleData(t.muxerTrackId, ByteBuffer.wrap(s.data), info)
             t.samplesOut++
             wroteAnything = true
+        }
+
+        /**
+         * Re-stamps AAC audio on its exact sample grid: sample k of a segment sits at
+         * `anchor + k * 1024 / sampleRate` relative to the segment's first mapped time.
+         *
+         * The extractor hands out microsecond stamps, and 1024/44100 s is not a whole number of
+         * microseconds, so every frame loses a fraction of a microsecond on its way through the muxer's
+         * rounding. Individually invisible, it accumulates (~4 s of audio lag on a 2.5 h HLS capture).
+         * Counting samples instead makes every frame exactly 1024 ticks at the audio timescale, which
+         * locks the audio to the video for the whole file. A jump of more than four frames in the raw
+         * stamps is a real content gap (the encoder dropped frames), so the grid restarts anchored at the
+         * mapped time and the gap survives. MP3 keeps its raw stamps: its frames are 1152 or 576 samples
+         * depending on profile and VBR captures are stamped exactly anyway.
+         */
+        private fun retimeAudio(t: Track, out: Long, rawUs: Long): Long {
+            if (out == TsTimeline.DROP || t.kind != TsTimeline.Kind.AUDIO) return out
+            val f = t.format
+            if (f == null || f.sampleMimeType != MimeTypes.AUDIO_AAC || f.sampleRate <= 0) return out
+            val frameUs = 1_000_000.0 * 1024 / f.sampleRate
+            val jumped = t.gridLastRaw != C.TIME_UNSET && rawUs - t.gridLastRaw > 4 * frameUs
+            if (t.gridAnchor == C.TIME_UNSET || jumped) {
+                t.gridIdx = 0
+                t.gridAnchor = out
+            }
+            val stamped = t.gridAnchor + Math.round(t.gridIdx * frameUs)
+            t.gridIdx++
+            t.gridLastRaw = rawUs
+            return stamped
         }
 
         /** MP3 goes in as an AAC-shaped `mp4a` track (the muxer has no MPEG audio); [finish] patches the object type. */
