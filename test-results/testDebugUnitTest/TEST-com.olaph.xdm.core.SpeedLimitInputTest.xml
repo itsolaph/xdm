@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.olaph.xdm.core.SpeedLimitInputTest" tests="6" skipped="0" failures="0" errors="0" timestamp="2026-10-31T07:01:42" hostname="runnervmnwato" time="0.001">
+  <properties/>
+  <testcase name="kilobytesAndMegabytes" classname="com.olaph.xdm.core.SpeedLimitInputTest" time="0.001"/>
+  <testcase name="displayAndParseAgree" classname="com.olaph.xdm.core.SpeedLimitInputTest" time="0.0"/>
+  <testcase name="nonsenseIsRejected" classname="com.olaph.xdm.core.SpeedLimitInputTest" time="0.0"/>
+  <testcase name="aTinyValueIsAtLeastOneByte" classname="com.olaph.xdm.core.SpeedLimitInputTest" time="0.0"/>
+  <testcase name="decimalsAndCommas" classname="com.olaph.xdm.core.SpeedLimitInputTest" time="0.0"/>
+  <testcase name="displayPicksAUnit" classname="com.olaph.xdm.core.SpeedLimitInputTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

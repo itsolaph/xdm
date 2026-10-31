@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.olaph.xdm.vault.LockStateTest" tests="9" skipped="0" failures="0" errors="0" timestamp="2026-10-31T07:01:54" hostname="runnervmnwato" time="0.0">
+  <properties/>
+  <testcase name="lockedStaysLockedWhateverHappens" classname="com.olaph.xdm.vault.LockStateTest" time="0.0"/>
+  <testcase name="startsLockedAndUnlocks" classname="com.olaph.xdm.vault.LockStateTest" time="0.0"/>
+  <testcase name="repeatedBackgroundEventsDoNotRestartTheClock" classname="com.olaph.xdm.vault.LockStateTest" time="0.0"/>
+  <testcase name="theTimerLocksOnlyAfterTheDelay" classname="com.olaph.xdm.vault.LockStateTest" time="0.0"/>
+  <testcase name="withADelayComingBackLateLocks" classname="com.olaph.xdm.vault.LockStateTest" time="0.0"/>
+  <testcase name="immediatelyLocksAsSoonAsTheAppLeaves" classname="com.olaph.xdm.vault.LockStateTest" time="0.0"/>
+  <testcase name="aClockGoingBackwardsLocks" classname="com.olaph.xdm.vault.LockStateTest" time="0.0"/>
+  <testcase name="screenOffAlwaysLocks" classname="com.olaph.xdm.vault.LockStateTest" time="0.0"/>
+  <testcase name="withADelayComingBackInTimeKeepsItOpen" classname="com.olaph.xdm.vault.LockStateTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

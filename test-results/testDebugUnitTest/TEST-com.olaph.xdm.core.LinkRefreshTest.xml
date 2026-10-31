@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.olaph.xdm.core.LinkRefreshTest" tests="14" skipped="0" failures="0" errors="0" timestamp="2026-10-31T07:01:42" hostname="runnervmnwato" time="0.002">
+  <properties/>
+  <testcase name="theSourcePageIsThePageToOpen" classname="com.olaph.xdm.core.LinkRefreshTest" time="0.0"/>
+  <testcase name="anUnknownTotalNeverAppliesAnything" classname="com.olaph.xdm.core.LinkRefreshTest" time="0.0"/>
+  <testcase name="onlyHttpPagesCount" classname="com.olaph.xdm.core.LinkRefreshTest" time="0.0"/>
+  <testcase name="retryOnOtherFailuresIsAPlainRetry" classname="com.olaph.xdm.core.LinkRefreshTest" time="0.0"/>
+  <testcase name="aUrlIsOnlyProbedOncePerRefreshUnlessItFailedForNow" classname="com.olaph.xdm.core.LinkRefreshTest" time="0.0"/>
+  <testcase name="theFirstMatchWins" classname="com.olaph.xdm.core.LinkRefreshTest" time="0.0"/>
+  <testcase name="nothingMatchesAfterRefreshModeEnded" classname="com.olaph.xdm.core.LinkRefreshTest" time="0.0"/>
+  <testcase name="excludedDownloadsStayExcluded" classname="com.olaph.xdm.core.LinkRefreshTest" time="0.0"/>
+  <testcase name="anExactSizeMatches" classname="com.olaph.xdm.core.LinkRefreshTest" time="0.0"/>
+  <testcase name="anotherSizeNeverMatches" classname="com.olaph.xdm.core.LinkRefreshTest" time="0.0"/>
+  <testcase name="retryOnAnExpiredLinkWithoutAPageIsAPlainRetry" classname="com.olaph.xdm.core.LinkRefreshTest" time="0.0"/>
+  <testcase name="retryOnAnExpiredLinkRefreshesIt" classname="com.olaph.xdm.core.LinkRefreshTest" time="0.0"/>
+  <testcase name="withoutAnyPageThereIsNothingToOpen" classname="com.olaph.xdm.core.LinkRefreshTest" time="0.0"/>
+  <testcase name="anOldDownloadFallsBackToItsReferer" classname="com.olaph.xdm.core.LinkRefreshTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

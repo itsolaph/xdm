@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.olaph.xdm.core.FileSaverTreeTest" tests="11" skipped="0" failures="0" errors="0" timestamp="2026-10-31T07:01:36" hostname="runnervmnwato" time="5.655">
+  <properties/>
+  <testcase name="deleteMapsToTheStatuses" classname="com.olaph.xdm.core.FileSaverTreeTest" time="5.294"/>
+  <testcase name="sortingPutsFilesIntoTypeSubfoldersThatAreReused" classname="com.olaph.xdm.core.FileSaverTreeTest" time="0.055"/>
+  <testcase name="twoFilesWithTheSameNameGetUniqueNames" classname="com.olaph.xdm.core.FileSaverTreeTest" time="0.047"/>
+  <testcase name="aFailedWriteLeavesNoPartialDocumentBehind" classname="com.olaph.xdm.core.FileSaverTreeTest" time="0.044"/>
+  <testcase name="folderNameAndAvailability" classname="com.olaph.xdm.core.FileSaverTreeTest" time="0.032"/>
+  <testcase name="aFolderThatNoLongerExistsFallsBackToo" classname="com.olaph.xdm.core.FileSaverTreeTest" time="0.035"/>
+  <testcase name="aMixOfSavedPlacesCanBeDeletedTogether" classname="com.olaph.xdm.core.FileSaverTreeTest" time="0.031"/>
+  <testcase name="savesIntoTheChosenFolderAndReadsItBack" classname="com.olaph.xdm.core.FileSaverTreeTest" time="0.033"/>
+  <testcase name="noChosenFolderMeansNoNoteAndNoWarning" classname="com.olaph.xdm.core.FileSaverTreeTest" time="0.033"/>
+  <testcase name="sortingAlsoAppliesToTheDefaultFolder" classname="com.olaph.xdm.core.FileSaverTreeTest" time="0.029"/>
+  <testcase name="withoutTheAccessTheFileGoesToDownloadXdmWithANote" classname="com.olaph.xdm.core.FileSaverTreeTest" time="0.022"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

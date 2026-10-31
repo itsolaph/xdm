@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.olaph.xdm.engine.HlsEngineTest" tests="20" skipped="0" failures="0" errors="0" timestamp="2026-10-31T07:01:50" hostname="runnervmnwato" time="2.285">
+  <properties/>
+  <testcase name="masterPlaylistPicksBestVariantAndOutputIsTheConcatenatedTs" classname="com.olaph.xdm.engine.HlsEngineTest" time="0.263"/>
+  <testcase name="serverIgnoringRangeIsHandledBySlicingTheBody" classname="com.olaph.xdm.engine.HlsEngineTest" time="0.047"/>
+  <testcase name="liveStreamsAreRejected" classname="com.olaph.xdm.engine.HlsEngineTest" time="0.003"/>
+  <testcase name="pauseAndResumeContinuesWithTheSegmentsAlreadyOnDisk" classname="com.olaph.xdm.engine.HlsEngineTest" time="0.647"/>
+  <testcase name="cookieAndRefererAreRequiredAndSentOnEveryRequest" classname="com.olaph.xdm.engine.HlsEngineTest" time="0.049"/>
+  <testcase name="resumeWorksAfterTheProcessDiedLeavingATmpFile" classname="com.olaph.xdm.engine.HlsEngineTest" time="0.093"/>
+  <testcase name="theSharedSpeedLimitAppliesToSegmentDownloads" classname="com.olaph.xdm.engine.HlsEngineTest" time="0.01"/>
+  <testcase name="aNetworkChangeRestartsHangingSegmentsWithoutCostingAnAttempt" classname="com.olaph.xdm.engine.HlsEngineTest" time="0.091"/>
+  <testcase name="byteRangeSegmentsOfOneFileAreFetchedWithRangeHeaders" classname="com.olaph.xdm.engine.HlsEngineTest" time="0.047"/>
+  <testcase name="transientServerErrorOnASegmentIsRetried" classname="com.olaph.xdm.engine.HlsEngineTest" time="0.048"/>
+  <testcase name="staleWorkDirOfADifferentPlaylistIsDiscarded" classname="com.olaph.xdm.engine.HlsEngineTest" time="0.047"/>
+  <testcase name="cancellationLeavesNoHalfWrittenFiles" classname="com.olaph.xdm.engine.HlsEngineTest" time="0.305"/>
+  <testcase name="drmAndSampleAesAreRejected" classname="com.olaph.xdm.engine.HlsEngineTest" time="0.003"/>
+  <testcase name="cookieIsNotSentToAnUnrelatedSegmentHost" classname="com.olaph.xdm.engine.HlsEngineTest" time="0.005"/>
+  <testcase name="wrongKeyFailsInsteadOfWritingGarbage" classname="com.olaph.xdm.engine.HlsEngineTest" time="0.09"/>
+  <testcase name="queryStringChangesDoNotInvalidateTheResumeState" classname="com.olaph.xdm.engine.HlsEngineTest" time="0.051"/>
+  <testcase name="fmp4WithInitSegmentBecomesMp4" classname="com.olaph.xdm.engine.HlsEngineTest" time="0.048"/>
+  <testcase name="aes128WithExplicitIvAndKeyRotation" classname="com.olaph.xdm.engine.HlsEngineTest" time="0.134"/>
+  <testcase name="aes128WithIvFromMediaSequenceDecryptsToPlaintext" classname="com.olaph.xdm.engine.HlsEngineTest" time="0.133"/>
+  <testcase name="permanentSegmentErrorFailsTheDownloadAndKeepsFinishedSegments" classname="com.olaph.xdm.engine.HlsEngineTest" time="0.169"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

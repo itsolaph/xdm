@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.olaph.xdm.core.RunGateTest" tests="21" skipped="0" failures="0" errors="0" timestamp="2026-10-31T07:01:42" hostname="runnervmnwato" time="0.001">
+  <properties/>
+  <testcase name="startNowDoesNotSkipWifiOnly" classname="com.olaph.xdm.core.RunGateTest" time="0.0"/>
+  <testcase name="secondsUntilTheWindowCloses" classname="com.olaph.xdm.core.RunGateTest" time="0.0"/>
+  <testcase name="secondsUntilChangeAcrossMidnight" classname="com.olaph.xdm.core.RunGateTest" time="0.0"/>
+  <testcase name="anAlwaysOnWindowWithoutTheChargerRuleRestrictsNothing" classname="com.olaph.xdm.core.RunGateTest" time="0.0"/>
+  <testcase name="aDaytimeWindowIncludesItsStartAndExcludesItsEnd" classname="com.olaph.xdm.core.RunGateTest" time="0.0"/>
+  <testcase name="onlyWhileChargingNeedsTheChargerInsideTheWindow" classname="com.olaph.xdm.core.RunGateTest" time="0.0"/>
+  <testcase name="wifiOnlyOnWifiOrWithTheSettingOffDoesNotHold" classname="com.olaph.xdm.core.RunGateTest" time="0.0"/>
+  <testcase name="startNowSkipsTheWindowAndTheCharger" classname="com.olaph.xdm.core.RunGateTest" time="0.0"/>
+  <testcase name="wifiOnlyOnAMeteredNetworkHoldsEverything" classname="com.olaph.xdm.core.RunGateTest" time="0.0"/>
+  <testcase name="minutesDecideNotSeconds" classname="com.olaph.xdm.core.RunGateTest" time="0.0"/>
+  <testcase name="secondsUntilTheWindowOpens" classname="com.olaph.xdm.core.RunGateTest" time="0.0"/>
+  <testcase name="mayRunIsTheSameQuestion" classname="com.olaph.xdm.core.RunGateTest" time="0.0"/>
+  <testcase name="aWindowOfOneMinuteWorks" classname="com.olaph.xdm.core.RunGateTest" time="0.0"/>
+  <testcase name="clockFormatting" classname="com.olaph.xdm.core.RunGateTest" time="0.001"/>
+  <testcase name="equalStartAndEndMeansAlwaysOn" classname="com.olaph.xdm.core.RunGateTest" time="0.0"/>
+  <testcase name="onlyWhileChargingWithAnAlwaysOnWindowIsJustAChargerRule" classname="com.olaph.xdm.core.RunGateTest" time="0.0"/>
+  <testcase name="aWindowEndingAtMidnightIsClosedAtMidnight" classname="com.olaph.xdm.core.RunGateTest" time="0.0"/>
+  <testcase name="aWindowThatCrossesMidnightRunsOnBothSides" classname="com.olaph.xdm.core.RunGateTest" time="0.0"/>
+  <testcase name="nothingChangesWithTheClockWhenOffOrAlwaysOn" classname="com.olaph.xdm.core.RunGateTest" time="0.0"/>
+  <testcase name="aDisabledScheduleNeverHoldsAnything" classname="com.olaph.xdm.core.RunGateTest" time="0.0"/>
+  <testcase name="outsideTheWindowTheWindowIsTheReasonEvenWhenAlsoUnplugged" classname="com.olaph.xdm.core.RunGateTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

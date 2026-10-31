@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.olaph.xdm.adblock.AdBlockerTest" tests="25" skipped="0" failures="0" errors="0" timestamp="2026-10-31T07:00:48" hostname="runnervmnwato" time="0.087">
+  <properties/>
+  <testcase name="blocksListedHostAndSubdomains" classname="com.olaph.xdm.adblock.AdBlockerTest" time="0.065"/>
+  <testcase name="mediaUrlsReportedByThePageAreFilteredToo" classname="com.olaph.xdm.adblock.AdBlockerTest" time="0.001"/>
+  <testcase name="navigationIsNotBlockedOnAllowlistedSitesOrWithTheSwitchOff" classname="com.olaph.xdm.adblock.AdBlockerTest" time="0.001"/>
+  <testcase name="withTheBlockerOffTheAdVideoIsOffered" classname="com.olaph.xdm.adblock.AdBlockerTest" time="0.002"/>
+  <testcase name="swappingTheListTakesEffectImmediately" classname="com.olaph.xdm.adblock.AdBlockerTest" time="0.0"/>
+  <testcase name="popupModeStillAppliesOnAllowlistedSitesButAdsAreNotSingledOut" classname="com.olaph.xdm.adblock.AdBlockerTest" time="0.001"/>
+  <testcase name="navigationToNormalSitesAndWithinAListedSiteIsAllowed" classname="com.olaph.xdm.adblock.AdBlockerTest" time="0.001"/>
+  <testcase name="nothingIsBlockedUntilTheListIsLoaded" classname="com.olaph.xdm.adblock.AdBlockerTest" time="0.0"/>
+  <testcase name="configureReplacesTheAllowlist" classname="com.olaph.xdm.adblock.AdBlockerTest" time="0.001"/>
+  <testcase name="allowlistEntryForASubdomainDoesNotCoverTheParent" classname="com.olaph.xdm.adblock.AdBlockerTest" time="0.0"/>
+  <testcase name="masterSwitchOffDisablesEverything" classname="com.olaph.xdm.adblock.AdBlockerTest" time="0.001"/>
+  <testcase name="allowlistedPageSniffsAdHostsToo" classname="com.olaph.xdm.adblock.AdBlockerTest" time="0.0"/>
+  <testcase name="nothingIsBlockedBeforeSettingsAreRead" classname="com.olaph.xdm.adblock.AdBlockerTest" time="0.002"/>
+  <testcase name="allowedEntryReportsWhichEntryMatched" classname="com.olaph.xdm.adblock.AdBlockerTest" time="0.001"/>
+  <testcase name="blockedAdVideosNeverReachTheMediaCollector" classname="com.olaph.xdm.adblock.AdBlockerTest" time="0.001"/>
+  <testcase name="blockedSubresourceIsNeverSniffed" classname="com.olaph.xdm.adblock.AdBlockerTest" time="0.001"/>
+  <testcase name="navigationToAnAdHostIsBlocked" classname="com.olaph.xdm.adblock.AdBlockerTest" time="0.001"/>
+  <testcase name="adPopupsAreDiscardedSilentlyInBothBlockingModes" classname="com.olaph.xdm.adblock.AdBlockerTest" time="0.0"/>
+  <testcase name="blockedResponseMimeFollowsTheExtension" classname="com.olaph.xdm.adblock.AdBlockerTest" time="0.001"/>
+  <testcase name="allowlistBeatsBlocklistEvenWhenTheSiteItselfIsListed" classname="com.olaph.xdm.adblock.AdBlockerTest" time="0.0"/>
+  <testcase name="cleanGetSubresourceIsSniffedAndPostIsPassed" classname="com.olaph.xdm.adblock.AdBlockerTest" time="0.001"/>
+  <testcase name="allowlistedSiteIsNeverFiltered" classname="com.olaph.xdm.adblock.AdBlockerTest" time="0.0"/>
+  <testcase name="mainFrameIsNeverBlocked" classname="com.olaph.xdm.adblock.AdBlockerTest" time="0.001"/>
+  <testcase name="visitingAListedSiteKeepsItsOwnResources" classname="com.olaph.xdm.adblock.AdBlockerTest" time="0.0"/>
+  <testcase name="popupFromAThirdPartyAdFrameIsAnAd" classname="com.olaph.xdm.adblock.AdBlockerTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

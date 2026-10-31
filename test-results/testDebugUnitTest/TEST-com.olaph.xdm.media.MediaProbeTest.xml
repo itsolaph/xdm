@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.olaph.xdm.media.MediaProbeTest" tests="18" skipped="0" failures="0" errors="0" timestamp="2026-10-31T07:01:53" hostname="runnervmnwato" time="0.245">
+  <properties/>
+  <testcase name="octetStreamIsAcceptedOnlyWhenTheUrlLooksLikeMedia" classname="com.olaph.xdm.media.MediaProbeTest" time="0.051"/>
+  <testcase name="tinyFilesAreDropped" classname="com.olaph.xdm.media.MediaProbeTest" time="0.004"/>
+  <testcase name="segmentsAndIgnoredKindsAreNeverProbed" classname="com.olaph.xdm.media.MediaProbeTest" time="0.002"/>
+  <testcase name="dashWithContentProtectionIsReportedAsDrm" classname="com.olaph.xdm.media.MediaProbeTest" time="0.004"/>
+  <testcase name="serversThatRefuseHeadAreProbedWithARangeRequest" classname="com.olaph.xdm.media.MediaProbeTest" time="0.046"/>
+  <testcase name="videoFileWithSize" classname="com.olaph.xdm.media.MediaProbeTest" time="0.005"/>
+  <testcase name="m3u8UrlThatServesHtmlIsRejected" classname="com.olaph.xdm.media.MediaProbeTest" time="0.005"/>
+  <testcase name="nonMediaContentTypesAreDropped" classname="com.olaph.xdm.media.MediaProbeTest" time="0.005"/>
+  <testcase name="patternUrlsAreDecidedByTheContentType" classname="com.olaph.xdm.media.MediaProbeTest" time="0.004"/>
+  <testcase name="hlsLiveStreamIsShownAsUnsupported" classname="com.olaph.xdm.media.MediaProbeTest" time="0.005"/>
+  <testcase name="dashIsDetectedButMarkedUnsupported" classname="com.olaph.xdm.media.MediaProbeTest" time="0.004"/>
+  <testcase name="webmAndAudioLabels" classname="com.olaph.xdm.media.MediaProbeTest" time="0.004"/>
+  <testcase name="hlsMasterListsEveryQualityWithAnEstimatedSize" classname="com.olaph.xdm.media.MediaProbeTest" time="0.045"/>
+  <testcase name="cookieRefererAndUserAgentAreSent" classname="com.olaph.xdm.media.MediaProbeTest" time="0.004"/>
+  <testcase name="serverErrorsAreTransientNotRejections" classname="com.olaph.xdm.media.MediaProbeTest" time="0.003"/>
+  <testcase name="hlsMasterStillListedWhenTheVariantPlaylistFails" classname="com.olaph.xdm.media.MediaProbeTest" time="0.003"/>
+  <testcase name="bareHlsUrlsAreRecognisedByContentType" classname="com.olaph.xdm.media.MediaProbeTest" time="0.045"/>
+  <testcase name="subtitlePlaylistsAreRejected" classname="com.olaph.xdm.media.MediaProbeTest" time="0.003"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

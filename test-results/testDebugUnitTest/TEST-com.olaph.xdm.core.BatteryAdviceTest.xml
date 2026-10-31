@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.olaph.xdm.core.BatteryAdviceTest" tests="8" skipped="0" failures="0" errors="0" timestamp="2026-10-31T07:01:02" hostname="runnervmnwato" time="0.001">
+  <properties/>
+  <testcase name="moreThanThreeActiveDownloadsTriggerIt" classname="com.olaph.xdm.core.BatteryAdviceTest" time="0.001"/>
+  <testcase name="nothingToProtectNothingToShow" classname="com.olaph.xdm.core.BatteryAdviceTest" time="0.0"/>
+  <testcase name="aLargeUnfinishedDownloadTriggersIt" classname="com.olaph.xdm.core.BatteryAdviceTest" time="0.0"/>
+  <testcase name="xiaomiBrandsAreRecognised" classname="com.olaph.xdm.core.BatteryAdviceTest" time="0.0"/>
+  <testcase name="pausedOnesDoNotCountTowardsTheQueue" classname="com.olaph.xdm.core.BatteryAdviceTest" time="0.0"/>
+  <testcase name="aFinishedOrFailedLargeDownloadDoesNot" classname="com.olaph.xdm.core.BatteryAdviceTest" time="0.0"/>
+  <testcase name="neverWhenExemptOrDismissed" classname="com.olaph.xdm.core.BatteryAdviceTest" time="0.0"/>
+  <testcase name="exactlyTheLimitIsNotLarge" classname="com.olaph.xdm.core.BatteryAdviceTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

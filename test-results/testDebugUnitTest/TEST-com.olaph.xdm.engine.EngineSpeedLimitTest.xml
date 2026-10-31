@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.olaph.xdm.engine.EngineSpeedLimitTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-10-31T07:01:48" hostname="runnervmnwato" time="0.117">
+  <properties/>
+  <testcase name="theCapCanChangeWhileDownloadsRun" classname="com.olaph.xdm.engine.EngineSpeedLimitTest" time="0.033"/>
+  <testcase name="withoutACapTheLimiterIsNeverConsulted" classname="com.olaph.xdm.engine.EngineSpeedLimitTest" time="0.054"/>
+  <testcase name="aCapSlowsTheDownloadToTheRateAndKeepsTheBytesExact" classname="com.olaph.xdm.engine.EngineSpeedLimitTest" time="0.03"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

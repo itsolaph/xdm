@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.olaph.xdm.adblock.DomainMatcherTest" tests="11" skipped="0" failures="0" errors="0" timestamp="2026-10-31T07:00:49" hostname="runnervmnwato" time="0.006">
+  <properties/>
+  <testcase name="siteKeyDropsLeadingWww" classname="com.olaph.xdm.adblock.DomainMatcherTest" time="0.0"/>
+  <testcase name="emptyMatcherBlocksNothing" classname="com.olaph.xdm.adblock.DomainMatcherTest" time="0.0"/>
+  <testcase name="ignoresTrailingDots" classname="com.olaph.xdm.adblock.DomainMatcherTest" time="0.0"/>
+  <testcase name="matchesExactHost" classname="com.olaph.xdm.adblock.DomainMatcherTest" time="0.0"/>
+  <testcase name="parentOfAnEntryIsNotBlocked" classname="com.olaph.xdm.adblock.DomainMatcherTest" time="0.0"/>
+  <testcase name="walksParentDomains" classname="com.olaph.xdm.adblock.DomainMatcherTest" time="0.001"/>
+  <testcase name="hostOfParsesUrls" classname="com.olaph.xdm.adblock.DomainMatcherTest" time="0.003"/>
+  <testcase name="ipHostsAreNeverMatchedByWalking" classname="com.olaph.xdm.adblock.DomainMatcherTest" time="0.0"/>
+  <testcase name="onlyWholeLabelsMatch" classname="com.olaph.xdm.adblock.DomainMatcherTest" time="0.0"/>
+  <testcase name="isCaseInsensitive" classname="com.olaph.xdm.adblock.DomainMatcherTest" time="0.0"/>
+  <testcase name="nullAndBlankHostsAreNotBlocked" classname="com.olaph.xdm.adblock.DomainMatcherTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

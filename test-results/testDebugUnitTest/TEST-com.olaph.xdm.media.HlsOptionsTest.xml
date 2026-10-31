@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.olaph.xdm.media.HlsOptionsTest" tests="9" skipped="0" failures="0" errors="0" timestamp="2026-10-31T07:01:53" hostname="runnervmnwato" time="0.006">
+  <properties/>
+  <testcase name="containerFollowsTheProbedPlaylist" classname="com.olaph.xdm.media.HlsOptionsTest" time="0.002"/>
+  <testcase name="withoutAProbedMediaPlaylistSizesStayUnknown" classname="com.olaph.xdm.media.HlsOptionsTest" time="0.001"/>
+  <testcase name="liveMasterIsListedButNotSelectable" classname="com.olaph.xdm.media.HlsOptionsTest" time="0.0"/>
+  <testcase name="subtitlePlaylistsAreNotMedia" classname="com.olaph.xdm.media.HlsOptionsTest" time="0.001"/>
+  <testcase name="helpers" classname="com.olaph.xdm.media.HlsOptionsTest" time="0.0"/>
+  <testcase name="sizeIsEstimatedFromBandwidthTimesDuration" classname="com.olaph.xdm.media.HlsOptionsTest" time="0.001"/>
+  <testcase name="liveAndEncryptedMediaPlaylistsExplainWhy" classname="com.olaph.xdm.media.HlsOptionsTest" time="0.0"/>
+  <testcase name="singleMediaPlaylist" classname="com.olaph.xdm.media.HlsOptionsTest" time="0.001"/>
+  <testcase name="masterOptionsAreSortedAndLabelled" classname="com.olaph.xdm.media.HlsOptionsTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

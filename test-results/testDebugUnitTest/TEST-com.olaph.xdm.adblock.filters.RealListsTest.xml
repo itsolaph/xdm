@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.olaph.xdm.adblock.filters.RealListsTest" tests="7" skipped="0" failures="0" errors="0" timestamp="2026-10-31T07:00:54" hostname="runnervmnwato" time="1.914">
+  <properties/>
+  <testcase name="dnsExceptionsDoNotLiftOtherListsBlocks" classname="com.olaph.xdm.adblock.filters.RealListsTest" time="0.0"/>
+  <testcase name="dnsListSyntax" classname="com.olaph.xdm.adblock.filters.RealListsTest" time="0.001"/>
+  <testcase name="compiledCacheIsLossless" classname="com.olaph.xdm.adblock.filters.RealListsTest" time="1.434"/>
+  <testcase name="bundledListsHaveDatesAndKnownRules" classname="com.olaph.xdm.adblock.filters.RealListsTest" time="0.359"/>
+  <testcase name="parserNeverThrowsOnTheFullListsAndKeepsAlmostEverything" classname="com.olaph.xdm.adblock.filters.RealListsTest" time="0.118"/>
+  <testcase name="cacheWithAnotherFingerprintOrDamageIsRejected" classname="com.olaph.xdm.adblock.filters.RealListsTest" time="0.002"/>
+  <testcase name="everyBundledListIsPresentAndCompact" classname="com.olaph.xdm.adblock.filters.RealListsTest" time="0.0"/>
+  <system-out><![CDATA[[lists] easylist: 80412 lines → {skip:PROCEDURAL=48, host=48518, cosmetic=24318, network=7518, skip:UNSUPPORTED_OPTION=10}
+[lists] adguard-base: 49429 lines → {skip:PROCEDURAL=3114, host=11832, cosmetic=24141, network=10209, skip:UNSUPPORTED_OPTION=128, skip:INVALID=5}
+[lists] xdm-extra: 2 lines → {comment=2}
+]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

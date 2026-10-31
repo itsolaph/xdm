@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.olaph.xdm.engine.UrlInputTest" tests="9" skipped="0" failures="0" errors="0" timestamp="2026-10-31T07:01:53" hostname="runnervmnwato" time="0.002">
+  <properties/>
+  <testcase name="explicitHttpSchemesAreKept" classname="com.olaph.xdm.engine.UrlInputTest" time="0.0"/>
+  <testcase name="searchEngineIsConfigurable" classname="com.olaph.xdm.engine.UrlInputTest" time="0.0"/>
+  <testcase name="dangerousSchemesAreNeverLoadedFromTheAddressBar" classname="com.olaph.xdm.engine.UrlInputTest" time="0.0"/>
+  <testcase name="wordsWithoutADotAreSearchesEvenWithAColon" classname="com.olaph.xdm.engine.UrlInputTest" time="0.0"/>
+  <testcase name="displayHostStripsWwwAndPath" classname="com.olaph.xdm.engine.UrlInputTest" time="0.0"/>
+  <testcase name="externalSchemesPassThrough" classname="com.olaph.xdm.engine.UrlInputTest" time="0.0"/>
+  <testcase name="termsBecomeASearch" classname="com.olaph.xdm.engine.UrlInputTest" time="0.0"/>
+  <testcase name="bareDomainGetsHttps" classname="com.olaph.xdm.engine.UrlInputTest" time="0.001"/>
+  <testcase name="localhostAndIpAddressesGetHttp" classname="com.olaph.xdm.engine.UrlInputTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

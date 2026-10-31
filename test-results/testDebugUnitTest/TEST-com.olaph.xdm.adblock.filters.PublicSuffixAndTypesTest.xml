@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.olaph.xdm.adblock.filters.PublicSuffixAndTypesTest" tests="11" skipped="0" failures="0" errors="0" timestamp="2026-10-31T07:00:54" hostname="runnervmnwato" time="0.011">
+  <properties/>
+  <testcase name="bundledListIsLoaded" classname="com.olaph.xdm.adblock.filters.PublicSuffixAndTypesTest" time="0.0"/>
+  <testcase name="mainFrameIsADocument" classname="com.olaph.xdm.adblock.filters.PublicSuffixAndTypesTest" time="0.001"/>
+  <testcase name="secFetchDestWins" classname="com.olaph.xdm.adblock.filters.PublicSuffixAndTypesTest" time="0.0"/>
+  <testcase name="compactDomainSetWalksParents" classname="com.olaph.xdm.adblock.filters.PublicSuffixAndTypesTest" time="0.0"/>
+  <testcase name="wildcardAndExceptionRules" classname="com.olaph.xdm.adblock.filters.PublicSuffixAndTypesTest" time="0.0"/>
+  <testcase name="fallbackCoversTheCommonCases" classname="com.olaph.xdm.adblock.filters.PublicSuffixAndTypesTest" time="0.0"/>
+  <testcase name="headersThenExtension" classname="com.olaph.xdm.adblock.filters.PublicSuffixAndTypesTest" time="0.0"/>
+  <testcase name="thirdPartyComparison" classname="com.olaph.xdm.adblock.filters.PublicSuffixAndTypesTest" time="0.001"/>
+  <testcase name="compactDomainSetRoundTrip" classname="com.olaph.xdm.adblock.filters.PublicSuffixAndTypesTest" time="0.008"/>
+  <testcase name="registrableDomains" classname="com.olaph.xdm.adblock.filters.PublicSuffixAndTypesTest" time="0.001"/>
+  <testcase name="entityNames" classname="com.olaph.xdm.adblock.filters.PublicSuffixAndTypesTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

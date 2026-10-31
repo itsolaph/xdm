@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.olaph.xdm.crash.CrashScrubberTest" tests="15" skipped="0" failures="0" errors="0" timestamp="2026-10-31T07:01:46" hostname="runnervmnwato" time="0.003">
+  <properties/>
+  <testcase name="http and https urls are replaced" classname="com.olaph.xdm.crash.CrashScrubberTest" time="0.001"/>
+  <testcase name="url scanning edge cases" classname="com.olaph.xdm.crash.CrashScrubberTest" time="0.0"/>
+  <testcase name="class names and code frames are left alone" classname="com.olaph.xdm.crash.CrashScrubberTest" time="0.0"/>
+  <testcase name="playlist ids are replaced and ordinary words are not" classname="com.olaph.xdm.crash.CrashScrubberTest" time="0.0"/>
+  <testcase name="okhttp thread names carrying a url are reduced" classname="com.olaph.xdm.crash.CrashScrubberTest" time="0.0"/>
+  <testcase name="extractor exception messages are cut but the class and the frames stay" classname="com.olaph.xdm.crash.CrashScrubberTest" time="0.001"/>
+  <testcase name="googlevideo hosts and urls are replaced" classname="com.olaph.xdm.crash.CrashScrubberTest" time="0.0"/>
+  <testcase name="multi-line extractor messages and the script and parser libraries are cut too" classname="com.olaph.xdm.crash.CrashScrubberTest" time="0.0"/>
+  <testcase name="path at end of line is replaced" classname="com.olaph.xdm.crash.CrashScrubberTest" time="0.001"/>
+  <testcase name="an extractor exception without a message is left alone" classname="com.olaph.xdm.crash.CrashScrubberTest" time="0.0"/>
+  <testcase name="private folder paths and names never reach a report" classname="com.olaph.xdm.crash.CrashScrubberTest" time="0.0"/>
+  <testcase name="storage and sdcard paths are replaced including names with spaces" classname="com.olaph.xdm.crash.CrashScrubberTest" time="0.0"/>
+  <testcase name="host names in network exception messages are removed" classname="com.olaph.xdm.crash.CrashScrubberTest" time="0.0"/>
+  <testcase name="file and content uris are replaced too" classname="com.olaph.xdm.crash.CrashScrubberTest" time="0.0"/>
+  <testcase name="youtube video ids after v= and the short link paths are replaced" classname="com.olaph.xdm.crash.CrashScrubberTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

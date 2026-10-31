@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.olaph.xdm.vault.PinHasherTest" tests="7" skipped="0" failures="0" errors="0" timestamp="2026-10-31T07:01:54" hostname="runnervmnwato" time="0.28">
+  <properties/>
+  <testcase name="saltMakesEqualPinsHashDifferently" classname="com.olaph.xdm.vault.PinHasherTest" time="0.012"/>
+  <testcase name="storedFormRoundTripsAndRejectsGarbage" classname="com.olaph.xdm.vault.PinHasherTest" time="0.003"/>
+  <testcase name="defaultStrengthIsAtLeast120kRoundsOfPbkdf2Sha256" classname="com.olaph.xdm.vault.PinHasherTest" time="0.255"/>
+  <testcase name="aTamperedHashNeverVerifies" classname="com.olaph.xdm.vault.PinHasherTest" time="0.003"/>
+  <testcase name="sameSaltAndRoundsGiveTheSameHash" classname="com.olaph.xdm.vault.PinHasherTest" time="0.003"/>
+  <testcase name="onlyFourToEightDigitsArePins" classname="com.olaph.xdm.vault.PinHasherTest" time="0.0"/>
+  <testcase name="verifiesTheRightPinOnly" classname="com.olaph.xdm.vault.PinHasherTest" time="0.004"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

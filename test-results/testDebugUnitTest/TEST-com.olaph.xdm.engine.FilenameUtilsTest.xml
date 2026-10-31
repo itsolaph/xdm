@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.olaph.xdm.engine.FilenameUtilsTest" tests="32" skipped="0" failures="0" errors="0" timestamp="2026-10-31T07:01:50" hostname="runnervmnwato" time="0.004">
+  <properties/>
+  <testcase name="sanitizeCollapsesWhitespace" classname="com.olaph.xdm.engine.FilenameUtilsTest" time="0.0"/>
+  <testcase name="trailingSlashUsesLastSegment" classname="com.olaph.xdm.engine.FilenameUtilsTest" time="0.0"/>
+  <testcase name="sanitizeKeepsUnicode" classname="com.olaph.xdm.engine.FilenameUtilsTest" time="0.0"/>
+  <testcase name="escapedQuote" classname="com.olaph.xdm.engine.FilenameUtilsTest" time="0.0"/>
+  <testcase name="resolveAddsExtensionFromMime" classname="com.olaph.xdm.engine.FilenameUtilsTest" time="0.001"/>
+  <testcase name="rfc5987Utf8" classname="com.olaph.xdm.engine.FilenameUtilsTest" time="0.0"/>
+  <testcase name="quotedFilename" classname="com.olaph.xdm.engine.FilenameUtilsTest" time="0.0"/>
+  <testcase name="splitExtensionIgnoresLeadingDotAndSentences" classname="com.olaph.xdm.engine.FilenameUtilsTest" time="0.0"/>
+  <testcase name="hostOnlyUrlHasNoName" classname="com.olaph.xdm.engine.FilenameUtilsTest" time="0.0"/>
+  <testcase name="sanitizeStripsPathTraversal" classname="com.olaph.xdm.engine.FilenameUtilsTest" time="0.0"/>
+  <testcase name="uniqueNameAppendsCounter" classname="com.olaph.xdm.engine.FilenameUtilsTest" time="0.0"/>
+  <testcase name="nameFromUrlIsDecoded" classname="com.olaph.xdm.engine.FilenameUtilsTest" time="0.0"/>
+  <testcase name="resolveFallsBackToUrl" classname="com.olaph.xdm.engine.FilenameUtilsTest" time="0.0"/>
+  <testcase name="resolveWithNothing" classname="com.olaph.xdm.engine.FilenameUtilsTest" time="0.0"/>
+  <testcase name="uniqueNameNoCollision" classname="com.olaph.xdm.engine.FilenameUtilsTest" time="0.001"/>
+  <testcase name="rfc5987Latin1" classname="com.olaph.xdm.engine.FilenameUtilsTest" time="0.001"/>
+  <testcase name="noFilename" classname="com.olaph.xdm.engine.FilenameUtilsTest" time="0.0"/>
+  <testcase name="resolveFallsBackToMime" classname="com.olaph.xdm.engine.FilenameUtilsTest" time="0.0"/>
+  <testcase name="nameFromUrlPath" classname="com.olaph.xdm.engine.FilenameUtilsTest" time="0.0"/>
+  <testcase name="uniqueNameKeepsTarGz" classname="com.olaph.xdm.engine.FilenameUtilsTest" time="0.0"/>
+  <testcase name="rfc5987WinsOverPlainFilename" classname="com.olaph.xdm.engine.FilenameUtilsTest" time="0.0"/>
+  <testcase name="uniqueNameDotInBaseName" classname="com.olaph.xdm.engine.FilenameUtilsTest" time="0.0"/>
+  <testcase name="sanitizeLimitsLengthKeepingExtension" classname="com.olaph.xdm.engine.FilenameUtilsTest" time="0.001"/>
+  <testcase name="semicolonInsideQuotes" classname="com.olaph.xdm.engine.FilenameUtilsTest" time="0.0"/>
+  <testcase name="sanitizeReplacesIllegalCharacters" classname="com.olaph.xdm.engine.FilenameUtilsTest" time="0.0"/>
+  <testcase name="unquotedFilename" classname="com.olaph.xdm.engine.FilenameUtilsTest" time="0.0"/>
+  <testcase name="sanitizeTrimsDotsAndSpaces" classname="com.olaph.xdm.engine.FilenameUtilsTest" time="0.0"/>
+  <testcase name="rfc5987WithLanguageTagAndSpacesAroundEquals" classname="com.olaph.xdm.engine.FilenameUtilsTest" time="0.0"/>
+  <testcase name="uniqueNameWithoutExtension" classname="com.olaph.xdm.engine.FilenameUtilsTest" time="0.0"/>
+  <testcase name="plusIsNotDecodedAsSpace" classname="com.olaph.xdm.engine.FilenameUtilsTest" time="0.0"/>
+  <testcase name="resolvePrefersContentDisposition" classname="com.olaph.xdm.engine.FilenameUtilsTest" time="0.0"/>
+  <testcase name="percentEncodedPlainFilename" classname="com.olaph.xdm.engine.FilenameUtilsTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

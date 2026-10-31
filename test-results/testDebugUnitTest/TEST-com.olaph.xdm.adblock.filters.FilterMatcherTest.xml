@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.olaph.xdm.adblock.filters.FilterMatcherTest" tests="24" skipped="0" failures="0" errors="0" timestamp="2026-10-31T07:00:54" hostname="runnervmnwato" time="0.008">
+  <properties/>
+  <testcase name="separatorMatchesPunctuationAndTheEnd" classname="com.olaph.xdm.adblock.filters.FilterMatcherTest" time="0.001"/>
+  <testcase name="popupRulesOnlyApplyToPopups" classname="com.olaph.xdm.adblock.filters.FilterMatcherTest" time="0.0"/>
+  <testcase name="hostAnchorMatchesHostAndSubdomainsOnly" classname="com.olaph.xdm.adblock.filters.FilterMatcherTest" time="0.0"/>
+  <testcase name="wildcardsAndSubstrings" classname="com.olaph.xdm.adblock.filters.FilterMatcherTest" time="0.0"/>
+  <testcase name="firstPartyOption" classname="com.olaph.xdm.adblock.filters.FilterMatcherTest" time="0.0"/>
+  <testcase name="tokenlessRulesScopedToSitesAreFound" classname="com.olaph.xdm.adblock.filters.FilterMatcherTest" time="0.0"/>
+  <testcase name="exclusionOnlyDomainList" classname="com.olaph.xdm.adblock.filters.FilterMatcherTest" time="0.0"/>
+  <testcase name="documentNavigationsOnlyMatchHostLevelAndDocumentRules" classname="com.olaph.xdm.adblock.filters.FilterMatcherTest" time="0.0"/>
+  <testcase name="regexRules" classname="com.olaph.xdm.adblock.filters.FilterMatcherTest" time="0.001"/>
+  <testcase name="importantBeatsException" classname="com.olaph.xdm.adblock.filters.FilterMatcherTest" time="0.0"/>
+  <testcase name="domainOptionWithNegationAndEntities" classname="com.olaph.xdm.adblock.filters.FilterMatcherTest" time="0.0"/>
+  <testcase name="typeRestrictedRulesOnlyMatchCompatibleTypes" classname="com.olaph.xdm.adblock.filters.FilterMatcherTest" time="0.001"/>
+  <testcase name="exceptionBeatsBlock" classname="com.olaph.xdm.adblock.filters.FilterMatcherTest" time="0.0"/>
+  <testcase name="hostsListNeverBlocksThePagesOwnEntry" classname="com.olaph.xdm.adblock.filters.FilterMatcherTest" time="0.001"/>
+  <testcase name="nonHttpUrlsAreNeverMatched" classname="com.olaph.xdm.adblock.filters.FilterMatcherTest" time="0.0"/>
+  <testcase name="startAndEndAnchors" classname="com.olaph.xdm.adblock.filters.FilterMatcherTest" time="0.0"/>
+  <testcase name="plainHostRulesGoThroughTheHostSet" classname="com.olaph.xdm.adblock.filters.FilterMatcherTest" time="0.001"/>
+  <testcase name="negatedTypes" classname="com.olaph.xdm.adblock.filters.FilterMatcherTest" time="0.0"/>
+  <testcase name="thirdPartyUsesTheRegistrableDomain" classname="com.olaph.xdm.adblock.filters.FilterMatcherTest" time="0.0"/>
+  <testcase name="matchingIsCaseInsensitiveUnlessMatchCase" classname="com.olaph.xdm.adblock.filters.FilterMatcherTest" time="0.0"/>
+  <testcase name="badfilterRemovesTheRuleFromAnyList" classname="com.olaph.xdm.adblock.filters.FilterMatcherTest" time="0.001"/>
+  <testcase name="documentExceptionAllowsEverythingOnThatPage" classname="com.olaph.xdm.adblock.filters.FilterMatcherTest" time="0.0"/>
+  <testcase name="matchReportsTheRule" classname="com.olaph.xdm.adblock.filters.FilterMatcherTest" time="0.0"/>
+  <testcase name="inferredScriptTypeLetsScriptRulesMatch" classname="com.olaph.xdm.adblock.filters.FilterMatcherTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

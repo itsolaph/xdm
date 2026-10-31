@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.olaph.xdm.remux.Mp4DashMuxerTest" tests="11" skipped="0" failures="0" errors="0" timestamp="2026-10-31T07:01:53" hostname="runnervmnwato" time="0.379">
+  <properties/>
+  <testcase name="theLongerTrackDecidesTheDuration" classname="com.olaph.xdm.remux.Mp4DashMuxerTest" time="0.106"/>
+  <testcase name="av1InMp4IsAccepted" classname="com.olaph.xdm.remux.Mp4DashMuxerTest" time="0.032"/>
+  <testcase name="theOutputIsAnOrdinaryFileNotAFragmentedOne" classname="com.olaph.xdm.remux.Mp4DashMuxerTest" time="0.028"/>
+  <testcase name="emptyPartIsRejected" classname="com.olaph.xdm.remux.Mp4DashMuxerTest" time="0.026"/>
+  <testcase name="progressEndsAtTheInputSize" classname="com.olaph.xdm.remux.Mp4DashMuxerTest" time="0.031"/>
+  <testcase name="garbageInputFailsWithoutLeavingAnOutputFile" classname="com.olaph.xdm.remux.Mp4DashMuxerTest" time="0.018"/>
+  <testcase name="audioOnlyBecomesAPlainM4a" classname="com.olaph.xdm.remux.Mp4DashMuxerTest" time="0.024"/>
+  <testcase name="vp9InWebmIsRejectedWithAClearMessage" classname="com.olaph.xdm.remux.Mp4DashMuxerTest" time="0.032"/>
+  <testcase name="opusAudioIsRejectedWithAClearMessage" classname="com.olaph.xdm.remux.Mp4DashMuxerTest" time="0.02"/>
+  <testcase name="samplesOfBothTracksAreInterleaved" classname="com.olaph.xdm.remux.Mp4DashMuxerTest" time="0.035"/>
+  <testcase name="h264VideoAndAacAudioBecomeOneMp4WithBothTracks" classname="com.olaph.xdm.remux.Mp4DashMuxerTest" time="0.026"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

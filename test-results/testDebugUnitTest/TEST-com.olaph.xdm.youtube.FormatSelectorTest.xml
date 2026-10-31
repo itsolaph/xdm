@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.olaph.xdm.youtube.FormatSelectorTest" tests="31" skipped="0" failures="0" errors="0" timestamp="2026-10-31T07:01:54" hostname="runnervmnwato" time="0.009">
+  <properties/>
+  <testcase name="rememberingAChoiceMapsToASetting" classname="com.olaph.xdm.youtube.FormatSelectorTest" time="0.001"/>
+  <testcase name="vp9InWebmIsNeverOffered" classname="com.olaph.xdm.youtube.FormatSelectorTest" time="0.0"/>
+  <testcase name="bestIsTheTopRow" classname="com.olaph.xdm.youtube.FormatSelectorTest" time="0.0"/>
+  <testcase name="askPicksNothing" classname="com.olaph.xdm.youtube.FormatSelectorTest" time="0.0"/>
+  <testcase name="aStoredPlanFindsTheSameItagsAgain" classname="com.olaph.xdm.youtube.FormatSelectorTest" time="0.001"/>
+  <testcase name="aPlanFallsBackToTheSameHeightAndCodecUnderAnotherItag" classname="com.olaph.xdm.youtube.FormatSelectorTest" time="0.0"/>
+  <testcase name="theOriginalAudioTrackBeatsADubbedOneEvenAtALowerBitrate" classname="com.olaph.xdm.youtube.FormatSelectorTest" time="0.0"/>
+  <testcase name="audioRowIsTheBestM4aAndOpusIsIgnored" classname="com.olaph.xdm.youtube.FormatSelectorTest" time="0.0"/>
+  <testcase name="h264IsPreferredAtEveryResolutionItOffers" classname="com.olaph.xdm.youtube.FormatSelectorTest" time="0.0"/>
+  <testcase name="aDeferredPlanIsDecidedByItsQuality" classname="com.olaph.xdm.youtube.FormatSelectorTest" time="0.001"/>
+  <testcase name="noOptionIsNull" classname="com.olaph.xdm.youtube.FormatSelectorTest" time="0.0"/>
+  <testcase name="longTitlesAreCutBeforeTheQualityAndExtension" classname="com.olaph.xdm.youtube.FormatSelectorTest" time="0.0"/>
+  <testcase name="fileNamesCarryTheQualityOrNone" classname="com.olaph.xdm.youtube.FormatSelectorTest" time="0.001"/>
+  <testcase name="withoutAdaptiveVideoTheProgressiveStreamIsTheAnswer" classname="com.olaph.xdm.youtube.FormatSelectorTest" time="0.0"/>
+  <testcase name="fixedResolutionsPickThatRowWithAvc1AndM4a" classname="com.olaph.xdm.youtube.FormatSelectorTest" time="0.001"/>
+  <testcase name="whenEverythingIsHigherTheLowestAvailableIsUsed" classname="com.olaph.xdm.youtube.FormatSelectorTest" time="0.0"/>
+  <testcase name="aMissingResolutionFallsBackToTheClosestLowerOne" classname="com.olaph.xdm.youtube.FormatSelectorTest" time="0.0"/>
+  <testcase name="progressiveStreamIsOfferedAsTheFastPath" classname="com.olaph.xdm.youtube.FormatSelectorTest" time="0.0"/>
+  <testcase name="aProgressivePlanStaysProgressive" classname="com.olaph.xdm.youtube.FormatSelectorTest" time="0.001"/>
+  <testcase name="titlesAreMadeSafeForFileSystems" classname="com.olaph.xdm.youtube.FormatSelectorTest" time="0.001"/>
+  <testcase name="nothingDownloadableMeansNull" classname="com.olaph.xdm.youtube.FormatSelectorTest" time="0.0"/>
+  <testcase name="sizeIsVideoPlusAudio" classname="com.olaph.xdm.youtube.FormatSelectorTest" time="0.0"/>
+  <testcase name="unicodeTitlesSurvive" classname="com.olaph.xdm.youtube.FormatSelectorTest" time="0.0"/>
+  <testcase name="everyVideoRowPairsItsVideoWithTheBestM4aAudio" classname="com.olaph.xdm.youtube.FormatSelectorTest" time="0.0"/>
+  <testcase name="progressiveAloneStillWorksWithoutAnyAdaptiveStream" classname="com.olaph.xdm.youtube.FormatSelectorTest" time="0.0"/>
+  <testcase name="audioQualityPicksTheAudioRow" classname="com.olaph.xdm.youtube.FormatSelectorTest" time="0.001"/>
+  <testcase name="missingLengthsAreEstimatedFromBitrateAndDuration" classname="com.olaph.xdm.youtube.FormatSelectorTest" time="0.0"/>
+  <testcase name="aPlanRoundTripsThroughItsEncoding" classname="com.olaph.xdm.youtube.FormatSelectorTest" time="0.0"/>
+  <testcase name="aPlanWhoseQualityIsGoneFailsInPlainWords" classname="com.olaph.xdm.youtube.FormatSelectorTest" time="0.0"/>
+  <testcase name="rowsAreHighestFirstThenTheFastOneThenAudio" classname="com.olaph.xdm.youtube.FormatSelectorTest" time="0.001"/>
+  <testcase name="garbagePlansDecodeToNull" classname="com.olaph.xdm.youtube.FormatSelectorTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

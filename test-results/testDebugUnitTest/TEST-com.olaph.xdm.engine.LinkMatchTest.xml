@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.olaph.xdm.engine.LinkMatchTest" tests="7" skipped="0" failures="0" errors="0" timestamp="2026-10-31T07:01:52" hostname="runnervmnwato" time="0.001">
+  <properties/>
+  <testcase name="anUnknownOldSizeLeavesNothingToCompare" classname="com.olaph.xdm.engine.LinkMatchTest" time="0.0"/>
+  <testcase name="sameSizeIsTheSameFile" classname="com.olaph.xdm.engine.LinkMatchTest" time="0.0"/>
+  <testcase name="aChangedEtagMeansRestartingFromZero" classname="com.olaph.xdm.engine.LinkMatchTest" time="0.0"/>
+  <testcase name="anEtagThatIsMissingOnOneSideIsNotAChange" classname="com.olaph.xdm.engine.LinkMatchTest" time="0.0"/>
+  <testcase name="sameSizeAndSameEtagIsTheSameFile" classname="com.olaph.xdm.engine.LinkMatchTest" time="0.001"/>
+  <testcase name="aDifferentSizeIsAnotherFile" classname="com.olaph.xdm.engine.LinkMatchTest" time="0.0"/>
+  <testcase name="anUnknownNewSizeCannotBeVerified" classname="com.olaph.xdm.engine.LinkMatchTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

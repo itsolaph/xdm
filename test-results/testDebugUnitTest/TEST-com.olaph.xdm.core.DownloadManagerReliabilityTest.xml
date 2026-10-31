@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.olaph.xdm.core.DownloadManagerReliabilityTest" tests="30" skipped="0" failures="1" errors="0" timestamp="2026-10-31T07:01:02" hostname="runnervmnwato" time="24.844">
+  <properties/>
+  <testcase name="aQueuedDownloadWaitsOutsideTheWindowAndRunsWhenItOpens" classname="com.olaph.xdm.core.DownloadManagerReliabilityTest" time="0.041"/>
+  <testcase name="notEnoughRoomForThePartialFileFailsBeforeAnythingIsFetched" classname="com.olaph.xdm.core.DownloadManagerReliabilityTest" time="0.019"/>
+  <testcase name="aFailedSaveKeepsTheDownloadedFileForARetry" classname="com.olaph.xdm.core.DownloadManagerReliabilityTest" time="0.05"/>
+  <testcase name="aFullCustomFolderVolumeFailsEarlyToo" classname="com.olaph.xdm.core.DownloadManagerReliabilityTest" time="0.011"/>
+  <testcase name="anExpiredLinkIsReplacedAndTheDownloadContinuesWithoutFetchingAgain" classname="com.olaph.xdm.core.DownloadManagerReliabilityTest" time="0.161"/>
+  <testcase name="changeUrlWorksOnAPausedDownloadAndRefusesAFinishedOne" classname="com.olaph.xdm.core.DownloadManagerReliabilityTest" time="0.132"/>
+  <testcase name="aReplacementWithAnotherEtagOffersARestartAndHonoursIt" classname="com.olaph.xdm.core.DownloadManagerReliabilityTest" time="0.159"/>
+  <testcase name="startNowIgnoresTheScheduleBeforeAndDuringTheRun" classname="com.olaph.xdm.core.DownloadManagerReliabilityTest" time="2.422"/>
+  <testcase name="withoutAWakeHookAnOpeningWindowJustStarts" classname="com.olaph.xdm.core.DownloadManagerReliabilityTest" time="0.038"/>
+  <testcase name="aSystemPausedDownloadCanAlsoBeResumedByHand" classname="com.olaph.xdm.core.DownloadManagerReliabilityTest" time="0.094"/>
+  <testcase name="pausingForTheSystemWithNothingToDoReportsZero" classname="com.olaph.xdm.core.DownloadManagerReliabilityTest" time="0.006"/>
+  <testcase name="aFinishedDownloadIsADuplicateOnlyWhileItsFileIsThere" classname="com.olaph.xdm.core.DownloadManagerReliabilityTest" time="0.035"/>
+  <testcase name="aFailureNobodyTakesOverIsAnnouncedAsBefore" classname="com.olaph.xdm.core.DownloadManagerReliabilityTest" time="0.124"/>
+  <testcase name="turningTheScheduleOffReleasesWhatWaited" classname="com.olaph.xdm.core.DownloadManagerReliabilityTest" time="20.011">
+    <failure message="java.lang.AssertionError: timed out waiting for: completed; rows=[(1, QUEUED)]" type="java.lang.AssertionError">java.lang.AssertionError: timed out waiting for: completed; rows=[(1, QUEUED)]
+	at com.olaph.xdm.core.DownloadManagerReliabilityTest.waitUntil(DownloadManagerReliabilityTest.kt:142)
+	at com.olaph.xdm.core.DownloadManagerReliabilityTest.access$waitUntil(DownloadManagerReliabilityTest.kt:60)
+	at com.olaph.xdm.core.DownloadManagerReliabilityTest$waitUntil$1.invokeSuspend(DownloadManagerReliabilityTest.kt)
+	at kotlin.coroutines.jvm.internal.BaseContinuationImpl.resumeWith(ContinuationImpl.kt:33)
+	at kotlinx.coroutines.internal.ScopeCoroutine.afterResume(Scopes.kt:28)
+	at kotlinx.coroutines.AbstractCoroutine.resumeWith(AbstractCoroutine.kt:100)
+	at kotlin.coroutines.jvm.internal.BaseContinuationImpl.resumeWith(ContinuationImpl.kt:46)
+	at kotlinx.coroutines.DispatchedTask.run(DispatchedTask.kt:99)
+	at kotlinx.coroutines.EventLoopImplBase.processNextEvent(EventLoop.common.kt:263)
+	at kotlinx.coroutines.BlockingCoroutine.joinBlocking(Builders.kt:95)
+	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlocking(Builders.kt:69)
+	at kotlinx.coroutines.BuildersKt.runBlocking(Unknown Source)
+	at kotlinx.coroutines.BuildersKt__BuildersKt.runBlocking$default(Builders.kt:47)
+	at kotlinx.coroutines.BuildersKt.runBlocking$default(Unknown Source)
+	at com.olaph.xdm.core.DownloadManagerReliabilityTest.turningTheScheduleOffReleasesWhatWaited(DownloadManagerReliabilityTest.kt:232)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:77)
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:569)
+	at org.junit.runners.model.FrameworkMethod$1.runReflectiveCall(FrameworkMethod.java:59)
+	at org.junit.internal.runners.model.ReflectiveCallable.run(ReflectiveCallable.java:12)
+	at org.junit.runners.model.FrameworkMethod.invokeExplosively(FrameworkMethod.java:56)
+	at org.junit.internal.runners.statements.InvokeMethod.evaluate(InvokeMethod.java:17)
+	at org.junit.internal.runners.statements.RunBefores.evaluate(RunBefores.java:26)
+	at org.junit.internal.runners.statements.RunAfters.evaluate(RunAfters.java:27)
+	at org.junit.rules.ExternalResource$1.evaluate(ExternalResource.java:54)
+	at org.junit.runners.ParentRunner$3.evaluate(ParentRunner.java:306)
+	at org.junit.runners.BlockJUnit4ClassRunner$1.evaluate(BlockJUnit4ClassRunner.java:100)
+	at org.junit.runners.ParentRunner.runLeaf(ParentRunner.java:366)
+	at org.junit.runners.BlockJUnit4ClassRunner.runChild(BlockJUnit4ClassRunner.java:103)
+	at org.junit.runners.BlockJUnit4ClassRunner.runChild(BlockJUnit4ClassRunner.java:63)
+	at org.junit.runners.ParentRunner$4.run(ParentRunner.java:331)
+	at org.junit.runners.ParentRunner$1.schedule(ParentRunner.java:79)
+	at org.junit.runners.ParentRunner.runChildren(ParentRunner.java:329)
+	at org.junit.runners.ParentRunner.access$100(ParentRunner.java:66)
+	at org.junit.runners.ParentRunner$2.evaluate(ParentRunner.java:293)
+	at org.junit.runners.ParentRunner$3.evaluate(ParentRunner.java:306)
+	at org.junit.runners.ParentRunner.run(ParentRunner.java:413)
+	at org.gradle.api.internal.tasks.testing.junit.JUnitTestClassExecutor.runTestClass(JUnitTestClassExecutor.java:112)
+	at org.gradle.api.internal.tasks.testing.junit.JUnitTestClassExecutor.execute(JUnitTestClassExecutor.java:58)
+	at org.gradle.api.internal.tasks.testing.junit.JUnitTestClassExecutor.execute(JUnitTestClassExecutor.java:40)
+	at org.gradle.api.internal.tasks.testing.junit.AbstractJUnitTestClassProcessor.processTestClass(AbstractJUnitTestClassProcessor.java:54)
+	at org.gradle.api.internal.tasks.testing.SuiteTestClassProcessor.processTestClass(SuiteTestClassProcessor.java:53)
+	at jdk.internal.reflect.GeneratedMethodAccessor12.invoke(Unknown Source)
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:569)
+	at org.gradle.internal.dispatch.ReflectionDispatch.dispatch(ReflectionDispatch.java:36)
+	at org.gradle.internal.dispatch.ReflectionDispatch.dispatch(ReflectionDispatch.java:24)
+	at org.gradle.internal.dispatch.ContextClassLoaderDispatch.dispatch(ContextClassLoaderDispatch.java:33)
+	at org.gradle.internal.dispatch.ProxyDispatchAdapter$DispatchingInvocationHandler.invoke(ProxyDispatchAdapter.java:92)
+	at jdk.proxy1/jdk.proxy1.$Proxy4.processTestClass(Unknown Source)
+	at org.gradle.api.internal.tasks.testing.worker.TestWorker$2.run(TestWorker.java:183)
+	at org.gradle.api.internal.tasks.testing.worker.TestWorker.executeAndMaintainThreadName(TestWorker.java:132)
+	at org.gradle.api.internal.tasks.testing.worker.TestWorker.execute(TestWorker.java:103)
+	at org.gradle.api.internal.tasks.testing.worker.TestWorker.execute(TestWorker.java:63)
+	at org.gradle.process.internal.worker.child.ActionExecutionWorker.execute(ActionExecutionWorker.java:56)
+	at org.gradle.process.internal.worker.child.SystemApplicationClassLoaderWorker.call(SystemApplicationClassLoaderWorker.java:121)
+	at org.gradle.process.internal.worker.child.SystemApplicationClassLoaderWorker.call(SystemApplicationClassLoaderWorker.java:71)
+	at worker.org.gradle.process.internal.worker.GradleWorkerMain.run(GradleWorkerMain.java:69)
+	at worker.org.gradle.process.internal.worker.GradleWorkerMain.main(GradleWorkerMain.java:74)
+</failure>
+  </testcase>
+  <testcase name="aRefreshedLinkOfTheSameFileIsTakenOverAndTheDownloadFinishes" classname="com.olaph.xdm.core.DownloadManagerReliabilityTest" time="0.201"/>
+  <testcase name="aReplacementOfAnotherSizeIsReportedAsADifferentFile" classname="com.olaph.xdm.core.DownloadManagerReliabilityTest" time="0.134"/>
+  <testcase name="onlyWhileChargingWaitsForTheCharger" classname="com.olaph.xdm.core.DownloadManagerReliabilityTest" time="0.037"/>
+  <testcase name="wifiOnlyStillBeatsStartNowDuringTheSchedule" classname="com.olaph.xdm.core.DownloadManagerReliabilityTest" time="0.189"/>
+  <testcase name="aNetworkSwitchUnsticksARunningDownload" classname="com.olaph.xdm.core.DownloadManagerReliabilityTest" time="0.021"/>
+  <testcase name="aNoteFromTheSaverShowsOnTheFinishedItem" classname="com.olaph.xdm.core.DownloadManagerReliabilityTest" time="0.038"/>
+  <testcase name="anOpeningWindowWithNothingRunningHoldsTheQueueUntilAServiceReleasesIt" classname="com.olaph.xdm.core.DownloadManagerReliabilityTest" time="0.038"/>
+  <testcase name="aFileThatChangedDuringTheSwitchIsDownloadedAgainFromZero" classname="com.olaph.xdm.core.DownloadManagerReliabilityTest" time="0.021"/>
+  <testcase name="aRefreshedLinkWhoseFileChangedNeedsTheUsersAnswerAndChangesNothing" classname="com.olaph.xdm.core.DownloadManagerReliabilityTest" time="0.139"/>
+  <testcase name="anUnknownTargetVolumeIsSkippedQuietly" classname="com.olaph.xdm.core.DownloadManagerReliabilityTest" time="0.069"/>
+  <testcase name="aBrokenInterceptorStillLeavesTheFailureNotice" classname="com.olaph.xdm.core.DownloadManagerReliabilityTest" time="0.124"/>
+  <testcase name="aCancelledDownloadIsNotADuplicateAndPrivateAddsAreNotChecked" classname="com.olaph.xdm.core.DownloadManagerReliabilityTest" time="0.02"/>
+  <testcase name="theSourcePageComesFromTheCaptureOrTheReferer" classname="com.olaph.xdm.core.DownloadManagerReliabilityTest" time="0.007"/>
+  <testcase name="theSystemTimeLimitPausesEverythingCleanlyAndOnlyThatComesBack" classname="com.olaph.xdm.core.DownloadManagerReliabilityTest" time="0.229"/>
+  <testcase name="anExpiredLinkFailureCanBeTakenOverSoNoFailureNoticeIsPosted" classname="com.olaph.xdm.core.DownloadManagerReliabilityTest" time="0.13"/>
+  <testcase name="aRunningDownloadGoesBackToTheQueueWhenTheWindowCloses" classname="com.olaph.xdm.core.DownloadManagerReliabilityTest" time="0.141"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

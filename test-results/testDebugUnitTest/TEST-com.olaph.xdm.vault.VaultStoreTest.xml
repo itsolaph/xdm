@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.olaph.xdm.vault.VaultStoreTest" tests="6" skipped="0" failures="0" errors="0" timestamp="2026-10-31T07:01:54" hostname="runnervmnwato" time="0.005">
+  <properties/>
+  <testcase name="renameKeepsTheFileInTheFolder" classname="com.olaph.xdm.vault.VaultStoreTest" time="0.001"/>
+  <testcase name="wipeRemovesEverything" classname="com.olaph.xdm.vault.VaultStoreTest" time="0.001"/>
+  <testcase name="deleteAndOpenOnlyWorkInsideTheFolder" classname="com.olaph.xdm.vault.VaultStoreTest" time="0.001"/>
+  <testcase name="saveMovesTheFileInUnderAUniqueName" classname="com.olaph.xdm.vault.VaultStoreTest" time="0.001"/>
+  <testcase name="namesAreSanitized" classname="com.olaph.xdm.vault.VaultStoreTest" time="0.0"/>
+  <testcase name="importChecksTheSizeAndLeavesNothingBehindOnFailure" classname="com.olaph.xdm.vault.VaultStoreTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

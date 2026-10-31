@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.olaph.xdm.adblock.filters.CosmeticTest" tests="8" skipped="0" failures="0" errors="0" timestamp="2026-10-31T07:00:50" hostname="runnervmnwato" time="0.021">
+  <properties/>
+  <testcase name="pageLevelCosmeticExceptions" classname="com.olaph.xdm.adblock.filters.CosmeticTest" time="0.01"/>
+  <testcase name="genericRulesAreKeyedByClassOrId" classname="com.olaph.xdm.adblock.filters.CosmeticTest" time="0.0"/>
+  <testcase name="specificSelectorsByHostSubdomainAndEntity" classname="com.olaph.xdm.adblock.filters.CosmeticTest" time="0.001"/>
+  <testcase name="bridgeIsNarrowAndCapped" classname="com.olaph.xdm.adblock.filters.CosmeticTest" time="0.008"/>
+  <testcase name="exceptionsRemoveSelectorsOnThatSite" classname="com.olaph.xdm.adblock.filters.CosmeticTest" time="0.0"/>
+  <testcase name="genericKeyExtraction" classname="com.olaph.xdm.adblock.filters.CosmeticTest" time="0.0"/>
+  <testcase name="blockerServesCssOnlyWhenActive" classname="com.olaph.xdm.adblock.filters.CosmeticTest" time="0.001"/>
+  <testcase name="cssIsOneRulePerSelector" classname="com.olaph.xdm.adblock.filters.CosmeticTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

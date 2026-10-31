@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.olaph.xdm.media.MediaFilesTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-10-31T07:01:53" hostname="runnervmnwato" time="0.0">
+  <properties/>
+  <testcase name="mediaIsDecidedByNameThenByServerType" classname="com.olaph.xdm.media.MediaFilesTest" time="0.0"/>
+  <testcase name="audioIsMediaButNotVideo" classname="com.olaph.xdm.media.MediaFilesTest" time="0.0"/>
+  <testcase name="timesAreFormattedLikeAPlayer" classname="com.olaph.xdm.media.MediaFilesTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.olaph.xdm.adblock.filters.FilterParserTest" tests="21" skipped="0" failures="0" errors="0" timestamp="2026-10-31T07:00:54" hostname="runnervmnwato" time="0.005">
+  <properties/>
+  <testcase name="scriptletsInjectionsAndHtmlFiltersAreSkipped" classname="com.olaph.xdm.adblock.filters.FilterParserTest" time="0.0"/>
+  <testcase name="pageLevelExceptions" classname="com.olaph.xdm.adblock.filters.FilterParserTest" time="0.001"/>
+  <testcase name="domainOption" classname="com.olaph.xdm.adblock.filters.FilterParserTest" time="0.0"/>
+  <testcase name="anchorsAndWildcardsAreNormalized" classname="com.olaph.xdm.adblock.filters.FilterParserTest" time="0.0"/>
+  <testcase name="exceptions" classname="com.olaph.xdm.adblock.filters.FilterParserTest" time="0.0"/>
+  <testcase name="typeOptionsAndAliases" classname="com.olaph.xdm.adblock.filters.FilterParserTest" time="0.001"/>
+  <testcase name="regexRules" classname="com.olaph.xdm.adblock.filters.FilterParserTest" time="0.0"/>
+  <testcase name="proceduralSelectorsAreSkipped" classname="com.olaph.xdm.adblock.filters.FilterParserTest" time="0.0"/>
+  <testcase name="partyOptions" classname="com.olaph.xdm.adblock.filters.FilterParserTest" time="0.0"/>
+  <testcase name="neverThrowsOnJunk" classname="com.olaph.xdm.adblock.filters.FilterParserTest" time="0.0"/>
+  <testcase name="hostRulesWithMoreThanAHostAreTokenRules" classname="com.olaph.xdm.adblock.filters.FilterParserTest" time="0.0"/>
+  <testcase name="negatedTypes" classname="com.olaph.xdm.adblock.filters.FilterParserTest" time="0.0"/>
+  <testcase name="unsupportedOptionsSkipTheRule" classname="com.olaph.xdm.adblock.filters.FilterParserTest" time="0.0"/>
+  <testcase name="commentsAndHeaders" classname="com.olaph.xdm.adblock.filters.FilterParserTest" time="0.0"/>
+  <testcase name="hostAnchorWithSeparatorIsAPlainHostRule" classname="com.olaph.xdm.adblock.filters.FilterParserTest" time="0.0"/>
+  <testcase name="ruleMatchingEverythingIsRejectedUnlessScoped" classname="com.olaph.xdm.adblock.filters.FilterParserTest" time="0.001"/>
+  <testcase name="thirdPartyHostRuleIsStillAPlainHost" classname="com.olaph.xdm.adblock.filters.FilterParserTest" time="0.0"/>
+  <testcase name="selectorsThatCouldBreakTheStylesheetAreRejected" classname="com.olaph.xdm.adblock.filters.FilterParserTest" time="0.0"/>
+  <testcase name="importantMatchCaseRedirect" classname="com.olaph.xdm.adblock.filters.FilterParserTest" time="0.0"/>
+  <testcase name="badfilter" classname="com.olaph.xdm.adblock.filters.FilterParserTest" time="0.0"/>
+  <testcase name="genericAndSpecificHiding" classname="com.olaph.xdm.adblock.filters.FilterParserTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

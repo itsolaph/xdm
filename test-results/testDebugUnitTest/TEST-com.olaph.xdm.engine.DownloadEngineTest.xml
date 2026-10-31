@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.olaph.xdm.engine.DownloadEngineTest" tests="17" skipped="0" failures="0" errors="0" timestamp="2026-10-31T07:01:46" hostname="runnervmnwato" time="1.884">
+  <properties/>
+  <testcase name="probeFallsBackToUrlName" classname="com.olaph.xdm.engine.DownloadEngineTest" time="0.011"/>
+  <testcase name="serverThatAlwaysIgnoresRangeStillCompletesBySkippingAhead" classname="com.olaph.xdm.engine.DownloadEngineTest" time="0.257"/>
+  <testcase name="rangeAnsweredWithWholeFileIsRetriedNotFatal" classname="com.olaph.xdm.engine.DownloadEngineTest" time="0.08"/>
+  <testcase name="pauseMidwayThenResumeKeepsHashAndSkipsDownloadedBytes" classname="com.olaph.xdm.engine.DownloadEngineTest" time="0.243"/>
+  <testcase name="downloadsWithEightSegmentsAndMatchingHash" classname="com.olaph.xdm.engine.DownloadEngineTest" time="0.096"/>
+  <testcase name="cancelStopsPromptlyEvenWhenServerStalls" classname="com.olaph.xdm.engine.DownloadEngineTest" time="0.517"/>
+  <testcase name="reportsProgressMonotonically" classname="com.olaph.xdm.engine.DownloadEngineTest" time="0.133"/>
+  <testcase name="probeDetectsRangeSupportWithoutAcceptRangesHeader" classname="com.olaph.xdm.engine.DownloadEngineTest" time="0.051"/>
+  <testcase name="serverWithoutRangeSupportUsesSingleConnection" classname="com.olaph.xdm.engine.DownloadEngineTest" time="0.068"/>
+  <testcase name="changedEtagRestartsFromZero" classname="com.olaph.xdm.engine.DownloadEngineTest" time="0.143"/>
+  <testcase name="retriesServerErrorsPerSegment" classname="com.olaph.xdm.engine.DownloadEngineTest" time="0.064"/>
+  <testcase name="givesUpAfterRepeatedServerErrors" classname="com.olaph.xdm.engine.DownloadEngineTest" time="0.037"/>
+  <testcase name="smallFileUsesOneSegment" classname="com.olaph.xdm.engine.DownloadEngineTest" time="0.013"/>
+  <testcase name="unknownSizeStreamsToEnd" classname="com.olaph.xdm.engine.DownloadEngineTest" time="0.084"/>
+  <testcase name="ignoredRangeBeyondSkipLimitFailsWithClearMessage" classname="com.olaph.xdm.engine.DownloadEngineTest" time="0.058"/>
+  <testcase name="probeReadsFilenameFromContentDisposition" classname="com.olaph.xdm.engine.DownloadEngineTest" time="0.016"/>
+  <testcase name="clientErrorFailsImmediatelyWithoutRetry" classname="com.olaph.xdm.engine.DownloadEngineTest" time="0.013"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

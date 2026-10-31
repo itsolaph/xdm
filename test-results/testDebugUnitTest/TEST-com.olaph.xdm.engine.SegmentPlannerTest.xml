@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.olaph.xdm.engine.SegmentPlannerTest" tests="9" skipped="0" failures="0" errors="0" timestamp="2026-10-31T07:01:52" hostname="runnervmnwato" time="0.001">
+  <properties/>
+  <testcase name="connectionCountIsClamped" classname="com.olaph.xdm.engine.SegmentPlannerTest" time="0.0"/>
+  <testcase name="oneByteFile" classname="com.olaph.xdm.engine.SegmentPlannerTest" time="0.0"/>
+  <testcase name="sizeNotDivisible" classname="com.olaph.xdm.engine.SegmentPlannerTest" time="0.0"/>
+  <testcase name="exactlyThresholdIsSplit" classname="com.olaph.xdm.engine.SegmentPlannerTest" time="0.0"/>
+  <testcase name="evenSplit" classname="com.olaph.xdm.engine.SegmentPlannerTest" time="0.0"/>
+  <testcase name="hugeFile" classname="com.olaph.xdm.engine.SegmentPlannerTest" time="0.0"/>
+  <testcase name="unknownSizeIsOpenEnded" classname="com.olaph.xdm.engine.SegmentPlannerTest" time="0.0"/>
+  <testcase name="singleThread" classname="com.olaph.xdm.engine.SegmentPlannerTest" time="0.0"/>
+  <testcase name="tinyFileUsesOneConnection" classname="com.olaph.xdm.engine.SegmentPlannerTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

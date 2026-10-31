@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.olaph.xdm.core.DuplicateCheckTest" tests="28" skipped="0" failures="0" errors="0" timestamp="2026-10-31T07:01:36" hostname="runnervmnwato" time="0.009">
+  <properties/>
+  <testcase name="anUnknownTargetFolderCountsAsTheSame" classname="com.olaph.xdm.core.DuplicateCheckTest" time="0.001"/>
+  <testcase name="theSameStemWithAnotherSizeIsNotADuplicate" classname="com.olaph.xdm.core.DuplicateCheckTest" time="0.001"/>
+  <testcase name="privateDownloadsNeitherMatchNorAreChecked" classname="com.olaph.xdm.core.DuplicateCheckTest" time="0.0"/>
+  <testcase name="anUnknownSizeNeverMatchesBySize" classname="com.olaph.xdm.core.DuplicateCheckTest" time="0.0"/>
+  <testcase name="theLinkIsComparedNormalised" classname="com.olaph.xdm.core.DuplicateCheckTest" time="0.0"/>
+  <testcase name="theSameSizeAndStemMatches" classname="com.olaph.xdm.core.DuplicateCheckTest" time="0.0"/>
+  <testcase name="aDifferentFileIsNotADuplicate" classname="com.olaph.xdm.core.DuplicateCheckTest" time="0.0"/>
+  <testcase name="twoQualitiesOfOneYoutubeVideoAreNotTheSameLink" classname="com.olaph.xdm.core.DuplicateCheckTest" time="0.0"/>
+  <testcase name="aCompletedDownloadWhoseFileIsStillThereIsADuplicate" classname="com.olaph.xdm.core.DuplicateCheckTest" time="0.0"/>
+  <testcase name="aCompletedDownloadWhoseFileIsGoneIsNotADuplicate" classname="com.olaph.xdm.core.DuplicateCheckTest" time="0.0"/>
+  <testcase name="theSameNameInTheSameFolderMatches" classname="com.olaph.xdm.core.DuplicateCheckTest" time="0.001"/>
+  <testcase name="theDialogDescribesProgress" classname="com.olaph.xdm.core.DuplicateCheckTest" time="0.003"/>
+  <testcase name="aCancelledDownloadIsIgnored" classname="com.olaph.xdm.core.DuplicateCheckTest" time="0.0"/>
+  <testcase name="aDifferentQueryIsADifferentLink" classname="com.olaph.xdm.core.DuplicateCheckTest" time="0.0"/>
+  <testcase name="theSameStemWithAnotherExtensionIsNotADuplicate" classname="com.olaph.xdm.core.DuplicateCheckTest" time="0.0"/>
+  <testcase name="onlyPausedAndFailedMatchesCanBeResumed" classname="com.olaph.xdm.core.DuplicateCheckTest" time="0.0"/>
+  <testcase name="theNameIsComparedIgnoringCase" classname="com.olaph.xdm.core.DuplicateCheckTest" time="0.0"/>
+  <testcase name="theSameLinkBeatsTheSameName" classname="com.olaph.xdm.core.DuplicateCheckTest" time="0.001"/>
+  <testcase name="theSameNameInAnotherFolderIsNotADuplicate" classname="com.olaph.xdm.core.DuplicateCheckTest" time="0.0"/>
+  <testcase name="aCompletedDownloadWithoutALocationIsNotADuplicate" classname="com.olaph.xdm.core.DuplicateCheckTest" time="0.0"/>
+  <testcase name="skippingEverythingLeavesNothing" classname="com.olaph.xdm.core.DuplicateCheckTest" time="0.0"/>
+  <testcase name="anUnfinishedDownloadWithTheNameWillLandInTheSameFolder" classname="com.olaph.xdm.core.DuplicateCheckTest" time="0.001"/>
+  <testcase name="anEmptyListHasNoDuplicate" classname="com.olaph.xdm.core.DuplicateCheckTest" time="0.0"/>
+  <testcase name="anUnfinishedMatchBeatsAFinishedOneOfTheSameKind" classname="com.olaph.xdm.core.DuplicateCheckTest" time="0.0"/>
+  <testcase name="theSameLinkMatches" classname="com.olaph.xdm.core.DuplicateCheckTest" time="0.0"/>
+  <testcase name="theSameSizeWithAnotherNameIsNotADuplicate" classname="com.olaph.xdm.core.DuplicateCheckTest" time="0.0"/>
+  <testcase name="aBatchWithoutDuplicatesHasNoSummary" classname="com.olaph.xdm.core.DuplicateCheckTest" time="0.0"/>
+  <testcase name="aBatchSaysHowManyAreAlreadyThere" classname="com.olaph.xdm.core.DuplicateCheckTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

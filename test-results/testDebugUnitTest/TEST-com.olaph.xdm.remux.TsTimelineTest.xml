@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.olaph.xdm.remux.TsTimelineTest" tests="10" skipped="0" failures="0" errors="0" timestamp="2026-10-31T07:01:54" hostname="runnervmnwato" time="0.004">
+  <properties/>
+  <testcase name="aSparseVideoTrackIsNotCutShortWhenAudioKeepsTheClockFresh" classname="com.olaph.xdm.remux.TsTimelineTest" time="0.003"/>
+  <testcase name="audioIsAlwaysStrictlyIncreasing" classname="com.olaph.xdm.remux.TsTimelineTest" time="0.0"/>
+  <testcase name="anUnusuallyLongBackJumpOfKeyFrameOnlyFiresForKeyFrames" classname="com.olaph.xdm.remux.TsTimelineTest" time="0.0"/>
+  <testcase name="firstSampleLandsOnZeroAndTimeFlowsOn" classname="com.olaph.xdm.remux.TsTimelineTest" time="0.0"/>
+  <testcase name="aBigForwardJumpDoesNotLeaveAHole" classname="com.olaph.xdm.remux.TsTimelineTest" time="0.0"/>
+  <testcase name="twoResetsGiveThreeEpochs" classname="com.olaph.xdm.remux.TsTimelineTest" time="0.0"/>
+  <testcase name="reorderedFramesAreNotMistakenForAJump" classname="com.olaph.xdm.remux.TsTimelineTest" time="0.0"/>
+  <testcase name="samplesBeforeTheStartAreDropped" classname="com.olaph.xdm.remux.TsTimelineTest" time="0.0"/>
+  <testcase name="clockResetToZeroContinuesWhereTheContentEnded" classname="com.olaph.xdm.remux.TsTimelineTest" time="0.0"/>
+  <testcase name="theLateTailOfTheOldClockStaysWithTheOldClock" classname="com.olaph.xdm.remux.TsTimelineTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

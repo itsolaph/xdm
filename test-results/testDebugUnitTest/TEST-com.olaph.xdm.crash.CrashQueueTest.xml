@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.olaph.xdm.crash.CrashQueueTest" tests="10" skipped="0" failures="0" errors="0" timestamp="2026-10-31T07:01:45" hostname="runnervmnwato" time="0.01">
+  <properties/>
+  <testcase name="files are sent oldest first" classname="com.olaph.xdm.crash.CrashQueueTest" time="0.002"/>
+  <testcase name="403 deletes the file" classname="com.olaph.xdm.crash.CrashQueueTest" time="0.002"/>
+  <testcase name="2xx deletes the file" classname="com.olaph.xdm.crash.CrashQueueTest" time="0.0"/>
+  <testcase name="gives up after 5 failed attempts" classname="com.olaph.xdm.crash.CrashQueueTest" time="0.002"/>
+  <testcase name="at most 10 files are kept and the oldest are dropped" classname="com.olaph.xdm.crash.CrashQueueTest" time="0.001"/>
+  <testcase name="a retried file can still succeed later" classname="com.olaph.xdm.crash.CrashQueueTest" time="0.001"/>
+  <testcase name="leftover tmp files and unrelated files are ignored" classname="com.olaph.xdm.crash.CrashQueueTest" time="0.0"/>
+  <testcase name="report is written as pending-millis json" classname="com.olaph.xdm.crash.CrashQueueTest" time="0.001"/>
+  <testcase name="server error keeps the file and counts the attempt" classname="com.olaph.xdm.crash.CrashQueueTest" time="0.0"/>
+  <testcase name="same millisecond does not overwrite" classname="com.olaph.xdm.crash.CrashQueueTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.olaph.xdm.engine.LinkSwapEngineTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-10-31T07:01:52" hostname="runnervmnwato" time="0.603">
+  <properties/>
+  <testcase name="theSizeOfTheNewProbeDecidesWhetherItIsAccepted" classname="com.olaph.xdm.engine.LinkSwapEngineTest" time="0.005"/>
+  <testcase name="aDownloadThatDiedOn403ContinuesOnAnotherLinkWithoutFetchingFinishedRangesAgain" classname="com.olaph.xdm.engine.LinkSwapEngineTest" time="0.218"/>
+  <testcase name="aLinkWhoseEtagChangedStartsOverInsteadOfStitching" classname="com.olaph.xdm.engine.LinkSwapEngineTest" time="0.38"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

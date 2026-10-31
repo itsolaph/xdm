@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.olaph.xdm.youtube.YoutubeErrorsTest" tests="14" skipped="0" failures="0" errors="0" timestamp="2026-10-31T07:01:54" hostname="runnervmnwato" time="0.002">
+  <properties/>
+  <testcase name="theUserNeverSeesTheLibrarysOwnMessage" classname="com.olaph.xdm.youtube.YoutubeErrorsTest" time="0.0"/>
+  <testcase name="aWrappedCauseIsFoundThroughTheChain" classname="com.olaph.xdm.youtube.YoutubeErrorsTest" time="0.0"/>
+  <testcase name="privateAndRemovedVideos" classname="com.olaph.xdm.youtube.YoutubeErrorsTest" time="0.0"/>
+  <testcase name="ourOwnExceptionPassesThroughUnchanged" classname="com.olaph.xdm.youtube.YoutubeErrorsTest" time="0.0"/>
+  <testcase name="parsingFailuresMeanXdmNeedsAnUpdate" classname="com.olaph.xdm.youtube.YoutubeErrorsTest" time="0.0"/>
+  <testcase name="liveBroadcastsAndPremieres" classname="com.olaph.xdm.youtube.YoutubeErrorsTest" time="0.0"/>
+  <testcase name="ageRestrictedNeedsASignIn" classname="com.olaph.xdm.youtube.YoutubeErrorsTest" time="0.0"/>
+  <testcase name="membersOnlyAndPaidVideosAreToldApart" classname="com.olaph.xdm.youtube.YoutubeErrorsTest" time="0.0"/>
+  <testcase name="everyMessageIsPlainWordsWithoutLinksOrIds" classname="com.olaph.xdm.youtube.YoutubeErrorsTest" time="0.0"/>
+  <testcase name="cancellationIsNeverSwallowed" classname="com.olaph.xdm.youtube.YoutubeErrorsTest" time="0.0"/>
+  <testcase name="botCheckAndRecaptcha" classname="com.olaph.xdm.youtube.YoutubeErrorsTest" time="0.0"/>
+  <testcase name="networkTroubleIsNotBlamedOnYoutube" classname="com.olaph.xdm.youtube.YoutubeErrorsTest" time="0.0"/>
+  <testcase name="anythingElseTheLibraryThrowsIsContainedToo" classname="com.olaph.xdm.youtube.YoutubeErrorsTest" time="0.001"/>
+  <testcase name="geoBlock" classname="com.olaph.xdm.youtube.YoutubeErrorsTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

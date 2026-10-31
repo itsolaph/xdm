@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.olaph.xdm.engine.SpeedLimiterTest" tests="7" skipped="0" failures="0" errors="0" timestamp="2026-10-31T07:01:52" hostname="runnervmnwato" time="0.078">
+  <properties/>
+  <testcase name="aSingleSlowCapIsHeldAsWell" classname="com.olaph.xdm.engine.SpeedLimiterTest" time="0.044"/>
+  <testcase name="severalReadersTogetherStayWithinTenPercentOfTheCap" classname="com.olaph.xdm.engine.SpeedLimiterTest" time="0.015"/>
+  <testcase name="offTakesNeitherTheClockNorASleep" classname="com.olaph.xdm.engine.SpeedLimiterTest" time="0.001"/>
+  <testcase name="aNewLimitAppliesToReadersThatAreAlreadyRunning" classname="com.olaph.xdm.engine.SpeedLimiterTest" time="0.013"/>
+  <testcase name="anIdlePeriodEarnsOnlyAShortBurst" classname="com.olaph.xdm.engine.SpeedLimiterTest" time="0.002"/>
+  <testcase name="switchingTheLimitOffLetsReadsThroughAtOnce" classname="com.olaph.xdm.engine.SpeedLimiterTest" time="0.001"/>
+  <testcase name="readsGetSmallerWithTheCapSoWaitsStayShort" classname="com.olaph.xdm.engine.SpeedLimiterTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.olaph.xdm.engine.DownloadHeadersEngineTest" tests="4" skipped="0" failures="0" errors="0" timestamp="2026-10-31T07:01:48" hostname="runnervmnwato" time="0.418">
+  <properties/>
+  <testcase name="headersSurvivePauseResumeAndRestart" classname="com.olaph.xdm.engine.DownloadHeadersEngineTest" time="0.341"/>
+  <testcase name="probeAndEverySegmentRequestCarryTheHeaders" classname="com.olaph.xdm.engine.DownloadHeadersEngineTest" time="0.033"/>
+  <testcase name="pageSuppliedRangeHeaderCannotBreakSegmentation" classname="com.olaph.xdm.engine.DownloadHeadersEngineTest" time="0.036"/>
+  <testcase name="withoutHeadersTheServerRefusesAndTheDownloadFailsFast" classname="com.olaph.xdm.engine.DownloadHeadersEngineTest" time="0.008"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

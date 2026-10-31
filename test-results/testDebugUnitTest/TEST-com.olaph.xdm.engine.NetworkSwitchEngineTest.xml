@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.olaph.xdm.engine.NetworkSwitchEngineTest" tests="4" skipped="0" failures="0" errors="0" timestamp="2026-10-31T07:01:52" hostname="runnervmnwato" time="0.029">
+  <properties/>
+  <testcase name="aNetworkChangeUnsticksAHangingSegmentWithoutUsingARetry" classname="com.olaph.xdm.engine.NetworkSwitchEngineTest" time="0.009"/>
+  <testcase name="anInterruptWithNothingRunningDoesNothing" classname="com.olaph.xdm.engine.NetworkSwitchEngineTest" time="0.007"/>
+  <testcase name="aFileThatChangedWhileTheNetworkWasAwayIsNeverStitched" classname="com.olaph.xdm.engine.NetworkSwitchEngineTest" time="0.005"/>
+  <testcase name="theFileIsComparedWithTheOriginalBeforeTheSegmentGoesOn" classname="com.olaph.xdm.engine.NetworkSwitchEngineTest" time="0.007"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

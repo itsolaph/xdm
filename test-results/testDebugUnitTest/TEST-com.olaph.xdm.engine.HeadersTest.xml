@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.olaph.xdm.engine.HeadersTest" tests="9" skipped="0" failures="0" errors="0" timestamp="2026-10-31T07:01:50" hostname="runnervmnwato" time="0.002">
+  <properties/>
+  <testcase name="decodedHeadersAreSanitizedAgain" classname="com.olaph.xdm.engine.HeadersTest" time="0.0"/>
+  <testcase name="valuesWithSeparatorsAndPercentSignsSurvive" classname="com.olaph.xdm.engine.HeadersTest" time="0.0"/>
+  <testcase name="originOfPageUrl" classname="com.olaph.xdm.engine.HeadersTest" time="0.001"/>
+  <testcase name="duplicateNamesAreCaseInsensitiveLastWins" classname="com.olaph.xdm.engine.HeadersTest" time="0.0"/>
+  <testcase name="emptyAndNullInputs" classname="com.olaph.xdm.engine.HeadersTest" time="0.0"/>
+  <testcase name="fromBrowserKeepsOnlyUsefulHeaders" classname="com.olaph.xdm.engine.HeadersTest" time="0.0"/>
+  <testcase name="desktopUserAgentDropsAndroidAndMobile" classname="com.olaph.xdm.engine.HeadersTest" time="0.0"/>
+  <testcase name="reservedAndUnsafeHeadersAreDropped" classname="com.olaph.xdm.engine.HeadersTest" time="0.0"/>
+  <testcase name="roundTripPreservesNamesValuesAndOrder" classname="com.olaph.xdm.engine.HeadersTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

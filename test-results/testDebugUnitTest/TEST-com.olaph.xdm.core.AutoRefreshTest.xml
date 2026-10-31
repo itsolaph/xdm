@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.olaph.xdm.core.AutoRefreshTest" tests="21" skipped="0" failures="0" errors="0" timestamp="2026-10-31T07:00:59" hostname="runnervmnwato" time="2.239">
+  <properties/>
+  <testcase name="aDownloadGetsTwoAutomaticAttemptsPerHalfHour" classname="com.olaph.xdm.core.AutoRefreshTest" time="0.316"/>
+  <testcase name="theSettingTurnedOffWhileWaitingIsHonoured" classname="com.olaph.xdm.core.AutoRefreshTest" time="0.004"/>
+  <testcase name="refreshesRunOneAtATimeInOrder" classname="com.olaph.xdm.core.AutoRefreshTest" time="0.245"/>
+  <testcase name="aSlowPageTimesOutAndIsStopped" classname="com.olaph.xdm.core.AutoRefreshTest" time="0.152"/>
+  <testcase name="onlyPlainFilesWithAnExpiredLinkAPageAndASizeQualify" classname="com.olaph.xdm.core.AutoRefreshTest" time="0.301"/>
+  <testcase name="anExactMatchIsAppliedAndAnnounced" classname="com.olaph.xdm.core.AutoRefreshTest" time="0.001"/>
+  <testcase name="theMatcherTakesTheFirstFileOfExactlyTheRightSize" classname="com.olaph.xdm.core.AutoRefreshTest" time="0.001"/>
+  <testcase name="itIsActiveWhileAnythingIsQueuedOrRunning" classname="com.olaph.xdm.core.AutoRefreshTest" time="0.001"/>
+  <testcase name="aMatchTheDownloadCannotTakeIsAFailure" classname="com.olaph.xdm.core.AutoRefreshTest" time="0.001"/>
+  <testcase name="withoutAWebViewTheOrdinaryFailureNoticeApplies" classname="com.olaph.xdm.core.AutoRefreshTest" time="0.301"/>
+  <testcase name="theMatcherAsksAboutAUrlOnce" classname="com.olaph.xdm.core.AutoRefreshTest" time="0.001"/>
+  <testcase name="theMatcherNeedsAKnownSizeAndAnOpenTarget" classname="com.olaph.xdm.core.AutoRefreshTest" time="0.001"/>
+  <testcase name="theSettingTurnsItOff" classname="com.olaph.xdm.core.AutoRefreshTest" time="0.301"/>
+  <testcase name="aRefusedUrlIsNotAskedAgainButAPassingErrorIs" classname="com.olaph.xdm.core.AutoRefreshTest" time="0.001"/>
+  <testcase name="twoCandidatesOfTheRightSizeCannotBothWin" classname="com.olaph.xdm.core.AutoRefreshTest" time="0.001"/>
+  <testcase name="aFailureAlreadyBeingHandledIsNotQueuedTwice" classname="com.olaph.xdm.core.AutoRefreshTest" time="0.302"/>
+  <testcase name="aFinderThatBreaksFallsBackToTheOrdinaryNotice" classname="com.olaph.xdm.core.AutoRefreshTest" time="0.003"/>
+  <testcase name="aDifferentSizeIsNeverApplied" classname="com.olaph.xdm.core.AutoRefreshTest" time="0.001"/>
+  <testcase name="nothingFoundLeavesTheItemFailedAndSaysSo" classname="com.olaph.xdm.core.AutoRefreshTest" time="0.0"/>
+  <testcase name="aDownloadRetriedByHandInTheMeantimeIsLeftAlone" classname="com.olaph.xdm.core.AutoRefreshTest" time="0.302"/>
+  <testcase name="theLimitCountsAttemptsNotSuccessesOnly" classname="com.olaph.xdm.core.AutoRefreshTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>
