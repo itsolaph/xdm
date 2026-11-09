@@ -23,6 +23,7 @@ import java.nio.channels.FileChannel
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
 import kotlin.math.min
 
 /**
@@ -95,9 +96,9 @@ class DownloadEngine(
         }
         store.savePlan(request.id, probe, segments)
 
-        val table = SegmentTable(segments)
-        fun snapshot() = table.snapshot()
-        fun sum() = table.downloaded()
+        val liveTable = AtomicReference(SegmentTable(segments))
+        fun snapshot() = liveTable.get().snapshot()
+        fun sum() = liveTable.get().downloaded()
         urls.progress = ::sum
         onProgress(EngineProgress(sum(), total, snapshot()))
         val connections = request.connections.coerceIn(SegmentPlanner.MIN_CONNECTIONS, SegmentPlanner.MAX_CONNECTIONS)
@@ -134,19 +135,43 @@ class DownloadEngine(
                     // One worker per connection. Each takes the next unstarted segment (front to back; there are more
                     // segments than connections when their size is capped), and once none are left it splits the
                     // running segment with the most still to fetch, so a slow connection near the end gets help.
-                    val workers = if (minSplit > 0) connections else min(connections, table.size)
-                    List(workers) {
-                        async {
-                            while (true) {
-                                val seg = table.next(if (rangesFlaky.get()) 0L else minSplit) ?: break
-                                try {
-                                    runSegment(request, probe, table, seg, channel, urls, validation, rangesFlaky)
-                                } finally {
-                                    table.finished(seg)
+                    suspend fun runWorkers(connections: Int, split: Long, reduceOn503: Boolean) = coroutineScope {
+                        val table = liveTable.get()
+                        val workers = if (split > 0) connections else min(connections, table.size)
+                        val remaining = table.snapshot().filterNot { it.isComplete }
+                        // Idle workers cannot overload a server: require multiple ranges, or one that can split.
+                        val parallel = probe.resumable && workers > 1 && (remaining.size > 1 ||
+                            (split > 0 && remaining.any { it.length - it.downloaded >= maxOf(split, 2) }))
+                        List(workers) {
+                            async {
+                                while (true) {
+                                    val seg = table.next(if (rangesFlaky.get()) 0L else split) ?: break
+                                    try {
+                                        runSegment(
+                                            request, probe, table, seg, channel, urls, validation, rangesFlaky,
+                                            reduceOn503 && parallel,
+                                        )
+                                    } finally {
+                                        table.finished(seg)
+                                    }
                                 }
                             }
+                        }.awaitAll()
+                    }
+                    try {
+                        runWorkers(connections, minSplit, reduceOn503 = true)
+                    } catch (_: ReduceConnections) {
+                        // The nested scope has cancelled and joined every old reader, including blocked HTTP calls.
+                        // Keep every range (including dynamic splits), with exactly the bytes those readers wrote.
+                        currentCoroutineContext().ensureActive()
+                        liveTable.set(SegmentTable(snapshot()))
+                        // A network interruption may have arrived while the old readers were being cancelled.
+                        if (validation.epoch != interrupts.get()) {
+                            awaitNetwork()
+                            revalidate(request, probe, urls, validation)
                         }
-                    }.awaitAll()
+                        runWorkers(1, 0L, reduceOn503 = false)
+                    }
                 } finally {
                     ticker.cancel()
                 }
@@ -191,9 +216,11 @@ class DownloadEngine(
         urls: UrlHolder,
         validation: Validation,
         rangesFlaky: AtomicBoolean,
+        reduceOn503: Boolean,
     ) {
         val counter = seg.downloaded
         var attempt = 0
+        var unavailable = 0
         var refusals = 0
         var skipAhead = false
         while (true) {
@@ -231,6 +258,10 @@ class DownloadEngine(
                 throw e
             } catch (e: IOException) {
                 currentCoroutineContext().ensureActive() // an aborted call surfaces as IOException("Canceled")
+                // A single refusal is transient. Repeated 503s in parallel data requests get one serial retry phase.
+                // This signal is not an IOException, so it cannot be consumed by the ordinary retry loop.
+                unavailable = if (e is HttpStatusException && e.httpCode == 503 && counter.get() == before) unavailable + 1 else 0
+                if (reduceOn503 && unavailable >= 2) throw ReduceConnections()
                 if (isDiskFull(e)) throw FatalDownloadException("No space left on device", cause = e)
                 if (probe.resumable) {
                     if (counter.get() > before) attempt = 0 // made progress; the failure is not "stuck"
@@ -393,6 +424,8 @@ class DownloadEngine(
     }
 
     private fun FatalDownloadException.isExpiredUrl() = httpCode == 403 || httpCode == 410
+
+    private class ReduceConnections : Exception()
 
     private companion object {
         const val BUFFER_SIZE = 64 * 1024
